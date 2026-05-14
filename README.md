@@ -25,7 +25,14 @@ not prescriptions.
 ├── docs/
 │   ├── agent-first-company.md   The operating model
 │   ├── invariants.md            Guiding principles that hold across decisions
-│   └── team.md                  Your team's role-and-responsibility map
+│   ├── team.md                  Your team's role-and-responsibility map
+│   ├── decisions.md             Append-only log of direction changes (template)
+│   └── voice.md                 Voice norms for external-facing copy (template)
+├── status/
+│   ├── lead.md             Per-surface status file (template)
+│   ├── builder.md          Per-surface status file (template)
+│   ├── runner.md           Per-surface status file (template)
+│   └── weekly.md           Cross-surface weekly roll-up (template)
 └── agents/
     ├── lead/               Direction / priorities / final calls
     ├── builder/            The work itself (code, content, whatever you build)
