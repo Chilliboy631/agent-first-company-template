@@ -16,10 +16,14 @@ project after builder shipped schema migration + auth wiring.
 - **Immutability triggers** — `trg_rate_history_immutable` and
   `trg_input_price_history_immutable` fire BEFORE UPDATE *and* DELETE.
   `updated_at` triggers on the mutable tables.
-- **RLS policies** — per-table per-operation (matches docs/rls.md).
+- **RLS policies** — per-table per-operation (matches docs/rls.md shape).
   `rate_history` + `input_price_history` are append-only at policy level too
   (INSERT + SELECT only; no UPDATE/DELETE policy). labour_logs/input_logs
-  have full CRUD. audit_log SELECT-only.
+  have full CRUD. audit_log SELECT-only. NOTE: structurally present ≠ correct —
+  the `organization_members`/`organizations` SELECT policies have a recursion
+  bug that only shows at query time (see #0). Other tables' policies depend on
+  the same `organization_id IN (SELECT ... FROM organization_members ...)`
+  pattern, so they may recurse too once data is read — RE-TEST after #0 is fixed.
 - **Indexes** — `idx_rate_history_lookup`, `idx_input_price_lookup` present.
 - **Views** — `v_blocks_flat`, `v_labour_costs` both `security_invoker=true`.
 - **Function grants** — lookups (`get_active_*`, `require_active_rate`) are
@@ -51,28 +55,57 @@ Method B: SQL impersonation — set role `authenticated` + a JWT `sub` claim,
 called `create_organization`, then read back through RLS. Both inside rollback;
 final counts users/orgs/members/profiles all 0.
 
-- ✅ `create_organization` (the signup primitive) works for an authenticated
-  user: creates the org + an `organization_members` row with role=`owner`,
-  and the user can SEE both through RLS (org_visible=1, mem_visible=1,
-  role=owner). RLS read path CONFIRMED live.
-- ❌ **profiles row NOT created** — confirmed live (profiles_for_user=0 right
-  after create_organization). See #1.
-- ✅ service-role-only lookup denied to authenticated (RLS/grants enforced).
+- ✅ `create_organization` (the signup primitive) RUNS without error for an
+  authenticated user (execution reached later steps; it bypasses RLS as
+  SECURITY DEFINER, so the org + owner-membership writes happen).
+- 🔴 **CRITICAL: authenticated reads of `organization_members` AND
+  `organizations` fail with `infinite recursion detected in policy for
+  relation "organization_members"`.** CONFIRMED LIVE under impersonation
+  (role=authenticated + JWT sub). See #0 — this breaks the whole logged-in app.
+- ❌ **profiles row NOT created** — confirmed live (`profiles` read returned
+  count=0 right after create_organization; profiles has no recursion, so this
+  read succeeded and is trustworthy). See #1.
 - ⚠️ **Anon-key signUp is REJECTED by Supabase Auth with "Email address is
-  invalid"** for `@example.com` AND a `.test` domain. This is GoTrue-level
-  email validation/restriction on the project (not format). Couldn't complete
-  a pure end-to-end signup via the anon key without registering a real
-  external address — did NOT do that. See #2b. The create_organization +
-  RLS substance was proven via impersonation instead.
-- Login correct→session and wrong→error: NOT re-confirmed this run (the
-  earlier apparent run was buffered-output replay; the real signUp errored on
-  email validation before login could be reached). Logic in `loginAction` is
-  a thin wrapper over `signInWithPassword`; low risk but UNTESTED live.
+  invalid"** for `@example.com` AND a `.test` domain. GoTrue-level email
+  restriction (not format). Did NOT register a real external address. See #2b.
+- service-role-only lookup denied to authenticated: expected, but NOT cleanly
+  re-confirmed this run (earlier apparent confirmation was buffered-output
+  replay). The grants query (session 1) proved anon+authenticated lack EXECUTE,
+  which is the real evidence — treat the grant check as the source of truth.
+- Login correct→session / wrong→error: UNTESTED live (signUp blocked by 2b
+  before login could run). `loginAction` is a thin wrapper over
+  `signInWithPassword`; low risk but unverified.
 - ⏸️ middleware redirects: CODE-verified only, not click-verified.
 - ℹ️ `app/dashboard/page.tsx.disabled` is inert — no route conflict with
   `app/(app)/dashboard`. Real dashboard is the (app) one.
 
+### CORRECTION (honesty note)
+An earlier commit (29f410e) claimed the RLS read path was "CONFIRMED live
+(org_visible=1, mem_visible=1)". That was WRONG — that query had errored with
+the recursion bug before returning any rows; I misattributed buffered output.
+Retracted and corrected here. The real result is #0 below.
+
 ## BUGS / FINDINGS FOR BUILDER (in priority order)
+0. **🔴🔴 BLOCKER — infinite recursion in `organization_members` RLS policy.**
+   CONFIRMED LIVE. The SELECT policy "Users can select members of their
+   organizations" has USING:
+     `(user_id = auth.uid()) OR (organization_id IN
+        (SELECT organization_id FROM organization_members
+         WHERE user_id = auth.uid()))`
+   The subquery selects from `organization_members` *inside* the
+   `organization_members` policy → Postgres infinite recursion. And the
+   `organizations` SELECT/UPDATE/DELETE policies all do
+   `id IN (SELECT organization_id FROM organization_members WHERE ...)`, so
+   reading `organizations` hits the recursive members policy too.
+   IMPACT: every authenticated read of `organizations` or `organization_members`
+   500s. After login the dashboard cannot load the user's org/membership at
+   all — the entire authenticated app is non-functional. (Demo layer unaffected;
+   it doesn't touch Supabase.)
+   FIX (per docs/rls.md guidance): move the membership lookup into a SECURITY
+   DEFINER helper, e.g. `is_org_member(org_id uuid)` /
+   `current_user_org_ids()`, and reference THAT in the policies instead of a
+   self-select. The own-row branch (`user_id = auth.uid()`) is fine; it's the
+   cross-member subquery that must not read the same table under RLS.
 1. **🔴 signup never creates a `profiles` row.** CONFIRMED LIVE (profiles
    empty immediately after a real create_organization call). No trigger on
    `auth.users`; `create_organization` only writes org + member.
