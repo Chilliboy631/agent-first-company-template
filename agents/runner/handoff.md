@@ -44,10 +44,38 @@ project after builder shipped schema migration + auth wiring.
   "placeholder keys" note was a misread — retracted.) Service-role key is
   NOT set (commented out: "optional for now").
 
+### AUTH END-TO-END (live, against farmflowV1 — two methods, all rolled back / 0 residue)
+Method A: replicated the Server Actions' calls via @supabase/supabase-js + the
+real anon key (auth.signUp → rpc create_organization → signInWithPassword).
+Method B: SQL impersonation — set role `authenticated` + a JWT `sub` claim,
+called `create_organization`, then read back through RLS. Both inside rollback;
+final counts users/orgs/members/profiles all 0.
+
+- ✅ `create_organization` (the signup primitive) works for an authenticated
+  user: creates the org + an `organization_members` row with role=`owner`,
+  and the user can SEE both through RLS (org_visible=1, mem_visible=1,
+  role=owner). RLS read path CONFIRMED live.
+- ❌ **profiles row NOT created** — confirmed live (profiles_for_user=0 right
+  after create_organization). See #1.
+- ✅ service-role-only lookup denied to authenticated (RLS/grants enforced).
+- ⚠️ **Anon-key signUp is REJECTED by Supabase Auth with "Email address is
+  invalid"** for `@example.com` AND a `.test` domain. This is GoTrue-level
+  email validation/restriction on the project (not format). Couldn't complete
+  a pure end-to-end signup via the anon key without registering a real
+  external address — did NOT do that. See #2b. The create_organization +
+  RLS substance was proven via impersonation instead.
+- Login correct→session and wrong→error: NOT re-confirmed this run (the
+  earlier apparent run was buffered-output replay; the real signUp errored on
+  email validation before login could be reached). Logic in `loginAction` is
+  a thin wrapper over `signInWithPassword`; low risk but UNTESTED live.
+- ⏸️ middleware redirects: CODE-verified only, not click-verified.
+- ℹ️ `app/dashboard/page.tsx.disabled` is inert — no route conflict with
+  `app/(app)/dashboard`. Real dashboard is the (app) one.
+
 ## BUGS / FINDINGS FOR BUILDER (in priority order)
-1. **🔴 signup never creates a `profiles` row.** There is NO trigger on
-   `auth.users`, and `create_organization` only inserts `organizations` +
-   `organization_members`. The checklist requires a profiles row on signup.
+1. **🔴 signup never creates a `profiles` row.** CONFIRMED LIVE (profiles
+   empty immediately after a real create_organization call). No trigger on
+   `auth.users`; `create_organization` only writes org + member.
    Fix: add a `handle_new_user` trigger on auth.users, or insert the profile
    in `signupAction`.
 2. **🟠 email-confirmation path has no org creation.** `signupAction` only
@@ -56,6 +84,14 @@ project after builder shipped schema migration + auth wiring.
    `loginAction`, which creates no org → they reach /dashboard with no
    organization/membership and every org-scoped query is empty. Decide the
    confirmation setting; if ON, add org-creation to the post-confirmation path.
+   (Could not auto-detect the setting live — signUp was blocked by 2b before a
+   session could be observed.)
+2b. **🟠 Supabase Auth rejects signups as "Email address is invalid."** Seen
+   live for `@example.com` and `@*.test`. Some GoTrue email restriction is on
+   (domain allow/blocklist or strict validator). Ross/builder must confirm
+   real signups (e.g. gmail) actually succeed via the live signup form before
+   launch — otherwise real users may be blocked. Needs a browser test with a
+   real address, or a check of the Auth → Providers/email settings.
 3. **🟠 Logs-surface landmine.** `get_active_rate_history` /
    `get_active_input_price_history` / `require_active_rate` are
    service_role-ONLY, but `lib/supabase/` has only anon-key clients
@@ -68,10 +104,13 @@ project after builder shipped schema migration + auth wiring.
    and is the signup primitive. No action needed.
 
 ## NOT YET VERIFIED
-- Auth end-to-end (signup→user/org/member/profile rows, login→/dashboard,
-  wrong creds→error, unauth→redirect). The anon key is real, so this IS now
-  testable — needs a dev-server run + form submit (writes real auth rows).
-  Offered to Ross as the next step.
+- A full UI signup with a REAL email through a running `next dev` (blocked by
+  2b without registering a real external address). This is the one gap left in
+  auth — would confirm: the email validator accepts real domains, the
+  confirmation on/off setting, login→/dashboard, and middleware redirects, all
+  through the rendered pages.
+- Login wrong-creds→error and correct→/dashboard, live (logic-reviewed only).
+- Middleware redirects via a real browser (code-verified only).
 - Demo-layer regression (loads, banner, add log, rate resolution, reports) —
   not run; needs a browser session. Demo engine uses localStorage (no
   Supabase) so it should be unaffected, but unconfirmed.
