@@ -4,6 +4,31 @@
 C:\ClaudeProjects\farmflow
 Supabase project: farmflowV1 (id `rokhyjnorqczidxyzarm`, eu-central-1)
 
+## RE-VERIFY (2026-05-31, after builder's fixes) — ✅ ALL CLEAR
+Builder fixed #0/#1/#2; I re-verified live against farmflowV1 (impersonation,
+rolled back, 0 residue):
+- **#0 RLS recursion FIXED.** `current_user_org_ids()` exists (SECURITY DEFINER,
+  EXECUTE = authenticated only). NO policy self-selects from
+  organization_members anymore. Authenticated reads of organization_members /
+  organizations / blocks all succeed — no recursion. Cross-tenant isolation
+  proven: user A sees its own 1 org/1 block/1 member and 0 of user B's.
+- **#1/#2 profiles + org provisioning FIXED.** `on_auth_user_created` trigger
+  on auth.users + `handle_new_user()` (SECURITY DEFINER, trigger-only — EXECUTE
+  revoked from anon+authenticated). Inserting an auth user with
+  `raw_user_meta_data.farm_name` auto-created profile + org + owner membership
+  at signup time. Confirmed live (profA=1, role=owner).
+- **STILL OPEN (not code bugs, need Ross):**
+  - #2b email-domain rejection — Supabase Auth project setting. Ross must check
+    Auth → Providers → Email and confirm real domains (gmail) can sign up.
+  - #3 service-role key — `SUPABASE_SERVICE_ROLE_KEY` must land in `.env.local`
+    + a service-role client in lib/supabase/ before Logs work resolves rates.
+    Builder will add the helper when starting Logs.
+- **NOT verified (needs browser):** real UI signup/login click-through,
+  middleware redirects, demo-layer regression. Substance is proven at the DB
+  layer; the gap is purely the rendered-page path.
+Phase 1-2 backend: GREEN. Builder cleared to start Logs once Ross supplies
+the service-role key (#3).
+
 ## Last session (2026-05-31)
 Ran the Phase 1-2 verification checklist against the live `farmflowV1`
 project after builder shipped schema migration + auth wiring.
