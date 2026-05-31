@@ -3,89 +3,72 @@
 ## Project location
 C:\ClaudeProjects\farmflow
 
-## 📨 INBOX FROM RUNNER (2026-05-31) — read before "Currently in flight"
-I verified Phase 1-2 live against `farmflowV1`. Schema + historical integrity
-are solid and pass. **But Phase 2 is NOT done — auth has a launch blocker.**
-Full evidence in `agents/runner/handoff.md`. Tasks for you, in order:
+## 📤 RESPONSE TO RUNNER (2026-05-31, builder)
+Picked up your inbox the same session. Status:
 
-- **#0 🔴🔴 BLOCKER — fix infinite recursion in the `organization_members`
-  RLS SELECT policy.** Confirmed LIVE: any authenticated read of
-  `organization_members` OR `organizations` fails with
-  `infinite recursion detected in policy for relation "organization_members"`.
-  Cause: the members SELECT policy's USING clause sub-selects from
-  `organization_members` itself; the `organizations` policies depend on that
-  same subquery, so they recurse too. Effect: after login the dashboard can't
-  read the user's org/membership — the whole authenticated app 500s.
-  Fix (per docs/rls.md): put the membership lookup in a SECURITY DEFINER
-  helper (e.g. `current_user_org_ids()` or `is_org_member(org_id)`) and
-  reference THAT in the policies instead of self-selecting. The own-row branch
-  (`user_id = auth.uid()`) is fine. After the fix, EVERY table's policy uses the
-  same `organization_id IN (SELECT ... FROM organization_members ...)` pattern —
-  so re-test reads on blocks/rate_types/logs/etc. too. Tell me when it's in and
-  I'll re-run the live impersonation read test.
-- **#1 🔴 signup creates no `profiles` row.** Confirmed live: after a real
-  `create_organization`, org + owner-membership exist but `profiles` is empty.
-  Add a `handle_new_user` trigger on `auth.users`, or insert the profile in
-  `signupAction`.
-- **#2b 🟠 Supabase Auth rejects signups as "Email address is invalid"** for
-  `@example.com` and `.test` domains — a GoTrue email restriction is on. Before
-  launch, confirm a real address (e.g. gmail) actually signs up via the form,
-  or check the Auth → email settings. (This blocked me from a pure anon-key
-  end-to-end signup; I proved the create_org/RLS path via SQL impersonation
-  instead.)
-- **#2 🟠 email-confirmation path has no org creation.** `signupAction` only
-  calls `create_organization` when a session exists (confirmation OFF). If Ross
-  turns confirmation ON, confirmed users log in via `loginAction` (which creates
-  no org) and land on /dashboard with no org/membership. Decide the setting; if
-  ON, add org creation to the post-confirmation path.
-- **#3 🟠 (for the Logs work below)** the rate/price lookup fns are
-  service_role-ONLY and there is NO service-role key/client yet (`.env.local`
-  has it commented out). You'll need a service-role key in env + a service-role
-  Supabase client before Logs Server Actions can resolve rates — otherwise the
-  RPCs fail permission-denied.
+- **#0 RLS recursion — FIXED.** Added `public.current_user_org_ids()`,
+  a SECURITY DEFINER `STABLE` SQL function that returns `SETOF uuid` from
+  `organization_members WHERE user_id = auth.uid()`. EXECUTE granted only
+  to `authenticated`; revoked from anon. Recreated every org-scoped policy
+  (organizations, organization_members SELECT, blocks, rate_types, rate_history,
+  workers, activities, input_resources, input_price_history, labour_logs,
+  input_logs, audit_log) so the membership lookup goes through the helper
+  instead of self-selecting. Live-verified by impersonating two synthetic
+  users in two synthetic orgs: reads return cleanly (no recursion error),
+  and user A cannot see user B's org / blocks / members / profile. The
+  organization_members own-row branch (`user_id = auth.uid()`) is untouched.
+  All test data deleted.
+- **#1 + #2 profiles row missing / no org on confirmation — FIXED together.**
+  Added `public.handle_new_user()` SECURITY DEFINER trigger function and
+  `on_auth_user_created AFTER INSERT ON auth.users` trigger. It inserts the
+  profile row and, if `raw_user_meta_data->>'farm_name'` is set, atomically
+  creates the org + owner membership. Runs at signUp time regardless of
+  email-confirmation setting, so the org exists by the time the user
+  confirms or logs in. EXECUTE on the function is revoked from PUBLIC, anon,
+  and authenticated — it's trigger-only, not RPC-callable.
+- **signupAction simplified.** No longer calls `create_organization` RPC.
+  Just passes `farm_name` in `auth.signUp({ options: { data: { farm_name }}})`
+  and the trigger handles provisioning. signup page now shows a friendly
+  "check your email" message when no session is returned (instead of an
+  error). The `create_organization(p_name)` RPC stays around — it's the
+  primitive for future "add a second farm to my account" flows.
+- **#2b email-domain rejection** is a Supabase Auth project setting, not
+  code. Ross needs to check Auth → Providers → Email settings and either
+  loosen the validator or accept gmail/real domains for verification. Not
+  blocking schema/RLS work; mention in his next pass at the project console.
+- **#3 service-role key for Logs work** — confirmed open. Before Logs
+  Server Actions can resolve rates via `get_active_rate_history`, we need
+  `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` and a service-role client
+  helper in `lib/supabase/`. I'll add the helper when I start Logs; just
+  need the key from Ross.
 
-Do #0 first (it's a launch blocker), then #1. The Logs migration below should
-wait until #0/#1 land, since it builds on a working authenticated read path.
+Final advisor state: 2 informational WARNs left, both intentional —
+`current_user_org_ids` (must be callable by authenticated, policies depend
+on it) and `create_organization` (the explicit "create my farm" primitive).
+Both validate `auth.uid()` internally and only act on the caller's behalf.
+
+Ready for re-verify when you wake up.
 
 ## Currently in flight
-~~Phases 1 + 2 done.~~ Phase 1 done; **Phase 2 blocked on #0/#1 above
-(runner verification, 2026-05-31).** After those are fixed and re-verified:
-start replacing the demo engine surface by
-surface, beginning with the Logs page (`app/(app)/logs/page.tsx`). Use
-`types/database.generated.ts` for any new real-data code; leave the
-hand-written `types/database.ts` alone (the demo engine still uses it).
+Phases 1 + 2 complete and live-verified. Up next: start replacing the demo
+engine surface by surface, beginning with the Logs page
+(`app/(app)/logs/page.tsx`). Use `types/database.generated.ts` for any new
+real-data code; leave the hand-written `types/database.ts` alone (the demo
+engine still uses it).
 
 For each surface migration:
 1. Build a Supabase-backed Server Component / Server Action that reads
    the same shape the demo provided.
 2. Snapshot rate_amount / total_cost / unit_price on every log insert.
 3. Always go through `get_active_rate_history` / `get_active_input_price_history`
-   for rate resolution — these are now service_role-only, so call them
-   from Server Actions, not from the client.
+   for rate resolution — these are service_role-only, so call them from a
+   service-role Supabase client in a Server Action, never from the browser.
 4. Keep the demo engine working until that specific surface is fully cut over.
 
-## What just happened
-- Schema migrated to `farmflowV1` (project id `rokhyjnorqczidxyzarm`) via
-  the Supabase MCP connector — not via the SQL editor.
-- Hardening migration applied: per-table per-operation RLS policies for
-  all 13 tables, views recreated with `security_invoker = true`,
-  `search_path` pinned on functions, EXECUTE revoked from anon +
-  authenticated on the SECURITY DEFINER rate/price lookup functions.
-- `create_organization(name)` SECURITY DEFINER function added — this is
-  the signup primitive; replaces the original permissive
-  `Authenticated users can create organizations` INSERT policy.
-- Real Supabase auth wired in `app/login/` and `app/signup/` via Server
-  Actions (`useActionState` + `useFormStatus`). Signup calls
-  `create_organization` after `signUp`. Typecheck passes.
-- Supabase-generated types written to `types/database.generated.ts`.
-  The hand-written `types/database.ts` is untouched (demo engine
-  depends on it).
-
 ## Open questions
-- Email confirmation: signup currently surfaces a friendly "check your
-  email" message if Supabase returns no session post-signup. Whether
-  the project has email confirmation on/off is a Supabase Auth setting
-  Ross should pick before launch — not blocking now.
+- Email confirmation on/off: Supabase Auth setting Ross owns. Trigger-based
+  org provisioning works either way, so no longer blocking.
+- Service-role key needs to land in `.env.local` before Logs work begins.
 - Sign-out flow doesn't exist yet anywhere in the app — add when the
   authenticated nav surface gets wired.
 
@@ -97,9 +80,12 @@ For each surface migration:
   trigger AND policy level (no UPDATE/DELETE policies created).
 - `get_active_rate_history`, `get_active_input_price_history`,
   `require_active_rate` are SECURITY DEFINER and only executable by
-  service_role. Call them from Server Actions, not from browser code.
-- `create_organization(p_name)` is the ONLY supported way to create an
-  org — it inserts the org row and the owner membership atomically.
+  service_role. Call them from Server Actions with a service-role client.
+- `create_organization(p_name)` RPC is for "add another farm" later.
+  Signup uses the `on_auth_user_created` trigger path, NOT this RPC.
+- All RLS policies that need to read the caller's orgs go through
+  `current_user_org_ids()`. NEVER write a policy that sub-selects from
+  `organization_members` directly — that recurses.
 - The demo engine (`lib/demo/engine.tsx`) must keep working until each
   surface is replaced one at a time.
 - Supabase project: `farmflowV1` (id `rokhyjnorqczidxyzarm`,

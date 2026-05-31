@@ -67,5 +67,49 @@ Server Actions; signup calls `create_organization` after `signUp`.
 - Next builder step: start replacing the demo engine surface by surface,
   beginning with Logs.
 
+## 2026-05-31 — RLS recursion fix + signup via auth.users trigger
+
+**Decided by:** Builder, after runner verification flagged blockers
+**Status:** active
+
+**What changed:**
+1. Introduced `public.current_user_org_ids()` (SECURITY DEFINER, STABLE,
+   SETOF uuid) and recreated every org-scoped RLS policy to look up
+   memberships through it. This breaks the infinite-recursion path where
+   `organization_members` policies sub-selected from `organization_members`.
+2. Moved signup-time provisioning (profile + organization + owner
+   membership) out of `signupAction` and into an
+   `on_auth_user_created AFTER INSERT ON auth.users` trigger that calls
+   `public.handle_new_user()`. The trigger reads `farm_name` from
+   `auth.users.raw_user_meta_data`. This fires regardless of whether email
+   confirmation is on, so the org is provisioned at the moment of signup.
+3. `signupAction` now just calls `supabase.auth.signUp` with
+   `options.data.farm_name` and shows a friendly "check your email"
+   message when no session is returned.
+4. Revoked EXECUTE on `handle_new_user()` from PUBLIC/anon/authenticated
+   (trigger-only, not RPC-callable).
+
+**Why:**
+- Runner verified that the original Phase-2 policies caused
+  `infinite recursion detected in policy for relation "organization_members"`
+  on any authenticated read of `organization_members` or `organizations`,
+  which would 500 the whole authenticated app. SECURITY DEFINER helper is
+  the standard Supabase-recommended fix.
+- Runner verified that signup created an org + membership but no profile
+  row, and that the confirmation-on path would skip org creation entirely.
+  An `auth.users` trigger fixes both with one mechanism and removes a
+  whole class of "what if confirmation is on" branching from the app code.
+
+**Affects:**
+- Every RLS policy on `organizations`, `organization_members` (SELECT
+  only), `blocks`, `rate_types`, `rate_history`, `workers`, `activities`,
+  `input_resources`, `input_price_history`, `labour_logs`, `input_logs`,
+  `audit_log`.
+- `app/signup/actions.ts` + `app/signup/page.tsx` (now handles
+  `{info: string}` state alongside `{error: string}`).
+- Future: any new policy that needs caller-org filtering MUST use
+  `current_user_org_ids()` — sub-selecting `organization_members`
+  directly will recurse.
+
 (Add new decision entries above this line. Do not delete this template
 section; it's the reference for how new entries should look.)
