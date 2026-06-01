@@ -23,6 +23,19 @@ signup test.** RESULT: confirmed green. Ross can run his test.
 
 ⏭️ After Ross's test: resume Blocks per the plan below.
 
+## 🩹 SIDE FIX (2026-06-02): demo hydration mismatch — DONE (commit eb8fa9a)
+Ross hit a Recoverable hydration error on `/dashboard` after relog. Root cause
+was in the shared demo engine, NOT recent migration work: `DemoProvider`
+(`lib/demo/engine.tsx`) initialised `useState` from `localStorage`, so the
+server rendered seed data while the client rendered persisted state → value +
+locale mismatch. Fix: seed on server + first client render, load saved state in
+a post-mount `useEffect`, and gate the persist effect behind a `loaded` flag so
+first mount can't clobber saved state with the seed. Also pinned
+`toLocaleString('en-ZA')` on SSR-rendered amounts in `dashboard/page.tsx` (3) and
+`reports/page.tsx` (6) so number format is deterministic across server/client.
+`tsc` clean, Ross confirmed the error is gone. Format is now SA-style
+(space-thousands, comma-decimal) — flip to `en-US` if ever desired.
+
 ## Project location
 C:\ClaudeProjects\farmflow
 
