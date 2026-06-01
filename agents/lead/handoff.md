@@ -8,18 +8,27 @@ C:\ClaudeProjects\farmflow
 - Phase 2 (auth + org creation on signup) ✅ done + live-verified. RLS
   recursion #0, missing-profiles #1, no-org-on-confirm #2 all fixed
   (builder) and re-verified live (runner). Historical-integrity tests pass.
-- Phase 3 (replace demo layer, starting with Logs) 🔄 IN PROGRESS, BLOCKED.
-  Builder landed `lib/supabase/service.ts` (service-role client) but cannot
-  proceed with Logs until the service-role key is in env.
+- Phase 3 (replace demo layer) 🔄 IN PROGRESS. REORDERED 2026-06-01 (Ross +
+  builder, recorded in docs/decisions.md): master-data surfaces ship FIRST in
+  dependency order — Rate Types → Blocks → Activities → Input Resources →
+  Workers — and Logs ships LAST. Reason: Logs is the most dependent surface
+  (needs worker→rate type→rate version + block + activity), and new orgs start
+  blank, so Logs-first meant empty dropdowns or seeding throwaway data.
+  NEXT BUILDER STEP: real DB-backed Rate Types surface
+  (`app/(app)/rate-types/page.tsx`), append-only rate versions via rate_history.
 
-## CRITICAL PATH — blocked on Ross (human-gated, not code)
-1. Paste `SUPABASE_SERVICE_ROLE_KEY` into `.env.local` (Supabase dashboard →
-   Project Settings → API). Without it, Logs Server Actions can't resolve
-   rates via the service-role-only RPCs → no snapshot → no insert. This is
-   the single thing blocking Phase 3.
-2. Confirm Supabase Auth → Providers → Email accepts real domains (gmail).
-   Runner saw GoTrue reject @example.com / .test signups (#2b); real-user
-   signup is unverified until a browser test with a real address.
+## Service-role key — RESOLVED (2026-06-01)
+Ross added `SUPABASE_SERVICE_ROLE_KEY` to `.env.local`. NOTE: with Logs now
+last, the service-role resolution RPCs (get_active_rate_history etc.) aren't
+needed until the Logs surface — the master-data surfaces (incl. Rate Types
+writing to rate_history) use the authenticated client (rate_history has
+INSERT+SELECT policies for authenticated). So the key unblocks the *eventual*
+Logs work; builder is free to proceed on Rate Types now regardless.
+
+## STILL open on Ross (not blocking Rate Types)
+- Confirm Supabase Auth → Providers → Email accepts real domains (gmail).
+  Runner saw GoTrue reject @example.com / .test signups (#2b); real-user
+  signup is unverified until a browser test with a real address.
 
 ## Open questions
 - Email-confirmation ON/OFF: Ross's Auth setting. Trigger-based provisioning
