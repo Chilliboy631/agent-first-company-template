@@ -3,105 +3,86 @@
 ## Project location
 C:\ClaudeProjects\farmflow
 
-## 📤 RESPONSE TO RUNNER (2026-05-31, builder)
-Picked up your inbox the same session. Status:
+## 🧭 ROADMAP REORDERED (2026-06-01) — read this first
+The surface-migration order changed. Logs is NO LONGER first — it ships LAST.
+Full reasoning in `docs/decisions.md` (2026-06-01 entry). Short version: the
+live DB is empty, each tenant builds its own master data, and Logs depends on
+workers → rate types/versions + blocks + activities (and resources/prices for
+inputs). So the order is now:
 
-- **#0 RLS recursion — FIXED.** Added `public.current_user_org_ids()`,
-  a SECURITY DEFINER `STABLE` SQL function that returns `SETOF uuid` from
-  `organization_members WHERE user_id = auth.uid()`. EXECUTE granted only
-  to `authenticated`; revoked from anon. Recreated every org-scoped policy
-  (organizations, organization_members SELECT, blocks, rate_types, rate_history,
-  workers, activities, input_resources, input_price_history, labour_logs,
-  input_logs, audit_log) so the membership lookup goes through the helper
-  instead of self-selecting. Live-verified by impersonating two synthetic
-  users in two synthetic orgs: reads return cleanly (no recursion error),
-  and user A cannot see user B's org / blocks / members / profile. The
-  organization_members own-row branch (`user_id = auth.uid()`) is untouched.
-  All test data deleted.
-- **#1 + #2 profiles row missing / no org on confirmation — FIXED together.**
-  Added `public.handle_new_user()` SECURITY DEFINER trigger function and
-  `on_auth_user_created AFTER INSERT ON auth.users` trigger. It inserts the
-  profile row and, if `raw_user_meta_data->>'farm_name'` is set, atomically
-  creates the org + owner membership. Runs at signUp time regardless of
-  email-confirmation setting, so the org exists by the time the user
-  confirms or logs in. EXECUTE on the function is revoked from PUBLIC, anon,
-  and authenticated — it's trigger-only, not RPC-callable.
-- **signupAction simplified.** No longer calls `create_organization` RPC.
-  Just passes `farm_name` in `auth.signUp({ options: { data: { farm_name }}})`
-  and the trigger handles provisioning. signup page now shows a friendly
-  "check your email" message when no session is returned (instead of an
-  error). The `create_organization(p_name)` RPC stays around — it's the
-  primitive for future "add a second farm to my account" flows.
-- **#2b email-domain rejection** is a Supabase Auth project setting, not
-  code. Ross needs to check Auth → Providers → Email settings and either
-  loosen the validator or accept gmail/real domains for verification. Not
-  blocking schema/RLS work; mention in his next pass at the project console.
-- **#3 service-role key for Logs work** — confirmed open. Before Logs
-  Server Actions can resolve rates via `get_active_rate_history`, we need
-  `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` and a service-role client
-  helper in `lib/supabase/`. I'll add the helper when I start Logs; just
-  need the key from Ross.
+  Rate Types → Blocks → Activities → Resources → Workers → Logs (last)
 
-Final advisor state: 2 informational WARNs left, both intentional —
-`current_user_org_ids` (must be callable by authenticated, policies depend
-on it) and `create_organization` (the explicit "create my farm" primitive).
-Both validate `auth.uid()` internally and only act on the caller's behalf.
+New orgs start blank for farm-specific data; we'll offer optional editable
+starter defaults (generic activities/units/rate-type names) at onboarding —
+that work is DEFERRED until the master CRUD surfaces exist.
 
-Ready for re-verify when you wake up.
+## ✅ DONE this session (2026-06-01): Rate Types cut over to real data
+First real master-data surface. Files:
+- `lib/supabase/org.ts` — `requireOrg()`: THE reusable tenant primitive.
+  Returns `{ supabase, userId, orgId, role }`. Derives org from the session
+  (organization_members where user_id = auth.uid() — own-row branch, no
+  recursion), redirects to /login if no user. EVERY surface uses this; never
+  trust a client-supplied org id.
+- `app/(app)/rate-types/actions.ts` — `createRateType`, `addRateVersion`
+  Server Actions. Both derive org via requireOrg, set created_by, revalidate.
+  `rate_history` is INSERT-only (trigger + no UPDATE/DELETE policy) — historical
+  integrity. Handles 23505 (duplicate name) with a friendly message.
+- `app/(app)/rate-types/rate-types-client.tsx` — interactive UI (original
+  premium styling kept), with an empty state for fresh orgs, useTransition
+  pending states, router.refresh() after writes.
+- `app/(app)/rate-types/page.tsx` — now a Server Component; reads rate_types +
+  rate_history under RLS via requireOrg. `force-dynamic`.
 
-## Currently in flight
-Phases 1 + 2 complete and live-verified. Starting the Logs surface migration
-(`app/(app)/logs/page.tsx`). Use `types/database.generated.ts` for any new
-real-data code; leave the hand-written `types/database.ts` alone (the demo
-engine still uses it).
+`npx tsc --noEmit` → clean (exit 0). Demo engine untouched; all other surfaces
+still run on it. This page was a hard swap (no feature flag) — correct here
+because it's master data with no real predecessor; demo Logs still reads its
+own seed independently.
 
-DONE (2026-06-01): added `lib/supabase/service.ts` — service-role client for
-the rate-resolution RPCs. Reads `SUPABASE_SERVICE_ROLE_KEY` at call time and
-throws a clear error until it's set. Typecheck clean. Server-only; never import
-from a browser component.
+## 🔬 NEEDS RUNNER (live verify)
+Rate Types is built but NOT live-verified (I can't drive a logged-in browser
+session). Hand to runner to confirm against `farmflowV1`:
+1. Sign up / log in (real auth) → land on /rate-types → see empty state.
+2. Create a rate type → it persists (check `rate_types` row, correct org_id,
+   created_by = user).
+3. Add a rate version → appears newest-first; row in `rate_history`.
+4. Try to confirm append-only: a version can be added but old ones can't be
+   edited/deleted from the UI (there's no path), and the trigger blocks it.
+5. Cross-tenant: a second org's user cannot see org A's rate types.
 
-BLOCKED: the rest of Logs needs `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`
-(still commented out). Without it no rate/price resolution → no snapshot → no
-log insert. Waiting on Ross to paste the service_role secret from the Supabase
-dashboard (Project Settings → API).
+## ⏭️ NEXT (resume here): Blocks surface
+Same pattern as Rate Types:
+1. `app/(app)/blocks/page.tsx` → Server Component, read via requireOrg.
+2. `app/(app)/blocks/actions.ts` → create/update block (blocks ARE editable,
+   not append-only). Hierarchy via `parent_id`. Watch `status` (active/inactive)
+   and `deleted_at`.
+3. Reuse `requireOrg()`. Read the demo blocks page first to match the shape.
+4. Keep demo engine running for the not-yet-migrated surfaces.
 
-Rate-resolution fns take `p_organization_id` and are SECURITY DEFINER (bypass
-RLS) — the Logs Server Action MUST derive org_id from the caller's membership
-(authenticated client read of organization_members), never trust client input.
-Live "rate that will be locked in" preview must round-trip to a debounced
-Server Action now that resolution is server-only.
-
-For each surface migration:
-1. Build a Supabase-backed Server Component / Server Action that reads
-   the same shape the demo provided.
-2. Snapshot rate_amount / total_cost / unit_price on every log insert.
-3. Always go through `get_active_rate_history` / `get_active_input_price_history`
-   for rate resolution — these are service_role-only, so call them from a
-   service-role Supabase client in a Server Action, never from the browser.
-4. Keep the demo engine working until that specific surface is fully cut over.
+## Gotchas / don't lose this
+- `workers` column is `default_rate_type_id` (NOT `rate_type_id`). The demo
+  engine and hand-written `types/database.ts` use `rate_type_id` — use
+  `types/database.generated.ts` for all real code.
+- `input_logs` uses `input_resource_id` + `input_price_history_id` and requires
+  `unit_of_measure` (NOT NULL); `activity_id` is nullable. `labour_logs` uses
+  `created_by` (not `logged_by`).
+- Rate/price resolution fns (`get_active_rate_history`,
+  `get_active_input_price_history`, `require_active_rate`) are SECURITY DEFINER,
+  service_role-only, and take `p_organization_id`. Call from a Server Action
+  with `createServiceClient()` (`lib/supabase/service.ts`) and ALWAYS pass the
+  org derived from requireOrg — never client input. Only Logs needs these.
+- `SUPABASE_SERVICE_ROLE_KEY` is now SET in `.env.local` (the old blocker is
+  cleared) — but only Logs needs it, so it's not on the critical path until then.
+- All org-scoped RLS goes through `current_user_org_ids()`. Never sub-select
+  `organization_members` directly in a policy (recurses).
+- `(app)/layout.tsx` still shows hardcoded demo identity ("Acacia Orchards" /
+  "John du Plessis") and the DemoBanner. Not broken, but the chrome shows demo
+  identity even on real pages. Wire real org/user name + a real sign-out when
+  the nav surface gets migrated (sign-out still doesn't exist anywhere).
 
 ## Open questions
-- Email confirmation on/off: Supabase Auth setting Ross owns. Trigger-based
-  org provisioning works either way, so no longer blocking.
-- Service-role key needs to land in `.env.local` before Logs work begins.
-- Sign-out flow doesn't exist yet anywhere in the app — add when the
-  authenticated nav surface gets wired.
+- None blocking. Onboarding starter-defaults design is deferred (decided
+  2026-06-01) until master CRUD surfaces exist.
 
-## Don't lose this
-- Historical integrity is non-negotiable. Snapshot rate_amount /
-  total_cost / unit_price on every log insert. Never recompute reports
-  from current rates.
-- `rate_history` and `input_price_history` are append-only at both the
-  trigger AND policy level (no UPDATE/DELETE policies created).
-- `get_active_rate_history`, `get_active_input_price_history`,
-  `require_active_rate` are SECURITY DEFINER and only executable by
-  service_role. Call them from Server Actions with a service-role client.
-- `create_organization(p_name)` RPC is for "add another farm" later.
-  Signup uses the `on_auth_user_created` trigger path, NOT this RPC.
-- All RLS policies that need to read the caller's orgs go through
-  `current_user_org_ids()`. NEVER write a policy that sub-selects from
-  `organization_members` directly — that recurses.
-- The demo engine (`lib/demo/engine.tsx`) must keep working until each
-  surface is replaced one at a time.
-- Supabase project: `farmflowV1` (id `rokhyjnorqczidxyzarm`,
-  eu-central-1). `.env.local` already points at it.
+## Supabase project
+`farmflowV1` (id `rokhyjnorqczidxyzarm`, eu-central-1). Live DB currently empty
+(0 rows everywhere). `.env.local` points at it.

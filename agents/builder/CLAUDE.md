@@ -1,83 +1,114 @@
-# Builder — the work itself
+# Builder — Backend Implementation (FarmFlow)
 
-## What you own
+## Project Identity
 
-- The work your company actually builds — code, content, designs,
-  whatever applies
-- Quality and coherence of what gets shipped
-- Briefs for any sub-work that goes to ephemeral helpers (when
-  multi-AI patterns develop)
-- Reviewing work that lands on your surface against invariants
+FarmFlow is a multi-tenant farm costing SaaS. Next.js 16 (App Router), React 19, TypeScript, Tailwind v4, Supabase (Postgres + Auth + RLS).
 
-## What you don't own
+**Current phase:** Replacing the demo data layer with real Supabase backend calls. The frontend is largely done. The schema is done. Your job is to wire them together correctly.
 
-- Direction or priorities (lead owns those)
-- Shipping or verifying live (runner owns that)
-- External framing (lead owns that)
+## The Non-Negotiable Rule
 
-## Wake-up routine
+**Historical cost integrity is inviolable.** Past labour and input logs must NEVER have their total_cost, rate_amount, or unit_price changed by future rate/price updates.
+
+Before touching anything cost-related, read: `docs/historical-integrity.md`
+
+## Before Any Session
 
 1. `git pull`
-2. Read the top-level docs:
-   - `CLAUDE.md`
-   - `docs/team.md`
-   - `docs/agent-first-company.md`
-   - `docs/invariants.md`
-3. Read your `handoff.md`
-4. Read `status/builder.md` (or whatever your surface is called) to
-   see what's active
-5. Check `docs/decisions.md` for any decisions affecting your surface
-6. Check messages addressed to you
-7. Pick up the next active task or work
-8. Update `handoff.md` and `status/builder.md`
-9. Commit and push
+2. Read `docs/historical-integrity.md`
+3. Read `docs/rls.md`
+4. Read `docs/database.md`
+5. Read `docs/architecture.md`
+6. Read your own `handoff.md` — pick up exactly where you left off
+7. Read `lead/handoff.md` — confirm today's priority hasn't changed
 
-## How to think about your role
+## What You Own
 
-You're the doer. Lead tells you "what matters now"; you turn that into
-shipped work. Be:
+- All backend implementation: Supabase auth wiring, real data calls, Server Actions, API routes
+- Replacing demo engine surfaces one at a time (do not rip out the whole demo at once)
+- Writing RLS policies following `docs/rls.md` exactly
+- TypeScript types staying consistent with `types/database.ts`
+- Keeping the UI working throughout the migration (never break the demo layer before the real layer is ready)
 
-- **Specific about scope.** Before starting, name what's in and what's
-  out. Stop when the in-scope work is done; surface the out-of-scope
-  items for lead's next decision.
-- **Honest about gaps.** When the work hits something you didn't
-  expect, surface it. Don't paper over.
-- **Discipline on review.** Even small changes benefit from a second
-  voice — a code-reviewer subagent, a "switch and critique" prompt,
-  another builder's eyes. Two voices on substantial work isn't
-  optional; it's how the work lands.
+## What You Do NOT Own
 
-## Common patterns
+- Deciding which surface to work on next (lead decides)
+- Verifying deploys and live testing (runner does that)
+- Frontend polish, design system changes, new UI features not in the current phase
 
-### Picking up a task
+## Current Task Context
 
-When a task lands on your surface:
-1. Read the brief carefully — what does "done" look like? what's the
-   acceptance criterion?
-2. If anything is ambiguous, ask before starting
-3. Do the work in a way that's reviewable — a branch, a draft, a
-   diff, an artifact someone can read
-4. Run the reviewer voice before you ship the work
+### What exists:
+- Full demo frontend with localStorage/in-memory engine (`lib/demo/engine.tsx`)
+- Production-grade Supabase schema (`supabase/migrations/20260530090000_core_farmflow_schema.sql`)
+- TypeScript types (`types/database.ts`)
+- Supabase clients (`lib/supabase/client.ts`, `lib/supabase/server.ts`, `lib/supabase/middleware.ts`)
+- Fake auth (login/signup redirect after timeout)
 
-### Briefing sub-work
+### What does NOT exist yet:
+- Real Supabase auth wiring
+- Organization creation on signup
+- Any real data calls (zero Supabase reads/writes in the app)
+- Edge Functions
+- RLS policies active (schema not migrated yet)
 
-When work needs to dispatch to a helper (a sub-agent, a worktree
-builder, an ephemeral pair):
-1. Write the brief as a small document — scope, acceptance criteria,
-   invariants in play, files in scope, files out of scope
-2. Include prior context the helper might miss
-3. Specify what "review checkpoint" means and when to come back to you
+### Next steps (in order):
+Phases 1 (schema migrated) and 2 (real auth + org provisioning) are DONE and
+runner-verified. Now replacing the demo engine surface by surface, in
+dependency order (see decisions.md 2026-06-01):
+1. Rate Types — DONE (2026-06-01), awaiting runner live-verify
+2. Blocks
+3. Activities
+4. Input Resources (+ price versions)
+5. Workers (note: column is `default_rate_type_id`)
+6. Logs (labour + inputs) — LAST; depends on all of the above
+See builder/handoff.md for the exact resume point.
 
-### Surfacing a gap
+## Critical Implementation Rules
 
-When the work reveals a gap (scope was wrong, an invariant got
-violated, an assumption proved wrong):
-1. Stop and surface to lead before continuing
-2. Don't quietly re-scope on your own — that's lead's call
+**Rate/price resolution:** ALWAYS use `get_active_rate_history()` and `get_active_input_price_history()` DB functions. Never write your own lookup logic.
 
-## What's in `handoff.md`
+**Log creation:** ALWAYS snapshot `rate_amount`, `total_cost`, `unit_price` onto the log row at insert time. Never calculate costs in reports by joining to current rates.
 
-- Active branches and their state
-- In-flight work that hasn't yet committed
-- Open questions that need lead's call
-- Gotchas a fresh session would re-hit otherwise
+**RLS:** Enable on every table. Follow the patterns in `docs/rls.md` exactly. Never skip RLS "temporarily."
+
+**Demo engine replacement pattern:**
+- Keep `lib/demo/engine.tsx` working until the real layer is ready for that surface
+- Replace one page at a time. ORDER (reordered 2026-06-01, see decisions.md):
+  Rate Types → Blocks → Activities → Resources → Workers → Logs (LAST).
+  Logs is the most *dependent* surface, so it ships last, not first.
+- Use a feature flag or environment check if needed during transition
+
+**When writing SQL or Supabase queries:**
+- Always scope by `organization_id`
+- Use `(select auth.uid())` not `auth.uid()` directly in RLS for performance
+- Separate policies for SELECT, INSERT, UPDATE, DELETE — never use FOR ALL
+
+## Useful Commands
+
+```powershell
+# Run the app
+cd "C:\Users\rossb\Projects\farmflow"
+npm run dev
+
+# Key files
+lib/demo/engine.tsx          # Demo data engine (replace surface by surface)
+supabase/migrations/...      # The schema
+lib/supabase/                # Supabase client setup
+types/database.ts            # TypeScript types
+app/(app)/logs/page.tsx      # Start here for first real data wiring
+app/globals.css              # Design system tokens (keep the premium feel)
+```
+
+## Supabase Project
+
+Project: farmflowV1
+URL + anon key: in `.env.local` (never commit this file)
+
+## Update handoff.md
+
+Before going idle, always update your handoff.md:
+- What branch/file/function you're in the middle of
+- Any gotchas discovered
+- Exact next step (specific enough that a fresh session can resume without asking)
+- Any open questions that need lead's decision

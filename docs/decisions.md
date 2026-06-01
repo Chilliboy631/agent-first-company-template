@@ -111,5 +111,44 @@ Server Actions; signup calls `create_organization` after `signUp`.
   `current_user_org_ids()` — sub-selecting `organization_members`
   directly will recurse.
 
+## 2026-06-01 — Reorder roadmap: master-data surfaces before Logs
+
+**Decided by:** Ross + builder
+**Status:** active
+
+**What changed:**
+Reversed the "Logs first" surface-migration order. Real DB-backed CRUD for
+the master-data surfaces ships first, in dependency order — Rate Types
+(+ rate versions) → Blocks → Activities → Input Resources (+ price
+versions) → Workers — and Logs (labour + inputs) ships LAST.
+Also: new orgs start blank for farm-specific data (blocks, workers, actual
+rates) but will be offered optional, fully-editable starter defaults for
+generic scaffolding (common activities, units, starter rate-type names) at
+onboarding time. The demo seed in `lib/demo/engine.tsx` (the "Acacia"
+farm) is throwaway demo content, NOT a production seed.
+
+**Why:**
+- The live DB is empty (0 rows everywhere; runner deleted the synthetic
+  auth test data). A real, multi-tenant client builds its own rate types,
+  blocks, workers, etc. — there is no universal seed.
+- Logs is the most *dependent* surface, not the most independent: a
+  labour log requires a worker → which references a rate type → which
+  needs ≥1 rate version, plus a block and an activity; an input log needs
+  a resource with a price version. "Logs first" only ever worked because
+  the demo seed was faking all of that underneath it.
+- Therefore Logs must come last. Building it first would mean either
+  seeding throwaway data into real orgs or shipping empty, unverifiable
+  dropdowns.
+
+**Affects:**
+- Build order for all remaining surface migrations. Supersedes the
+  "Logs first" instruction in `lead/handoff.md`, `builder/handoff.md`,
+  and `builder/CLAUDE.md` "Current Task Context".
+- Next builder step: real DB-backed Rate Types surface
+  (`app/(app)/rate-types/page.tsx`), append-only rate versions via
+  `rate_history` (no UPDATE/DELETE — enforced at trigger + policy level).
+- Onboarding/starter-defaults work is deferred until the master CRUD
+  surfaces exist.
+
 (Add new decision entries above this line. Do not delete this template
 section; it's the reference for how new entries should look.)
