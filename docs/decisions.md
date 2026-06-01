@@ -150,5 +150,30 @@ farm) is throwaway demo content, NOT a production seed.
 - Onboarding/starter-defaults work is deferred until the master CRUD
   surfaces exist.
 
+## 2026-06-02 — #2b settled: real-email signup works end-to-end
+
+**Decided by:** Ross (live test) + builder (boot-check)
+**Commit:** 2d2a071 (builder boot-check)
+**Status:** active
+
+**What changed:**
+Open question #2b is resolved. Builder confirmed `/signup` + `/login` render
+(HTTP 200) and the `signupAction` wiring is correct (`auth.signUp` with
+`options.data.farm_name`, no legacy `create_organization` RPC). Ross then ran
+a real-Gmail signup through the running app: the email was **accepted**, he
+**confirmed via the email link**, and **logged in successfully**. So email
+confirmation is **ON**, and Supabase's earlier rejection was limited to
+fake/test domains — real addresses pass.
+
+**Why:**
+The team paused builder's Blocks work to de-risk the real-email path before
+Ross tested. The test passed cleanly, so signup → confirm → login is verified
+working against `farmflowV1` with a real account.
+
+**Affects:**
+- Closes open question #2b across lead/builder handoffs.
+- `app/signup/*` confirmed working as-is; no code change needed.
+- Next builder step: resume the Blocks surface per the 2026-06-01 roadmap.
+
 (Add new decision entries above this line. Do not delete this template
 section; it's the reference for how new entries should look.)
