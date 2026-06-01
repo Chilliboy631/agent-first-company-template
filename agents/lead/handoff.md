@@ -14,8 +14,19 @@ C:\ClaudeProjects\farmflow
   Workers — and Logs ships LAST. Reason: Logs is the most dependent surface
   (needs worker→rate type→rate version + block + activity), and new orgs start
   blank, so Logs-first meant empty dropdowns or seeding throwaway data.
-  NEXT BUILDER STEP: real DB-backed Rate Types surface
-  (`app/(app)/rate-types/page.tsx`), append-only rate versions via rate_history.
+  Rate Types surface: ✅ builder shipped it to real data this session
+  (`requireOrg()` tenant primitive added in `lib/supabase/org.ts`; tsc clean;
+  demo engine untouched). NEEDS RUNNER live-verify (see builder/handoff).
+  NEXT BUILDER BUILD STEP: Blocks surface — but paused (see dispatch below).
+
+## DISPATCHED TO BUILDER (2026-06-01) — awaiting, then PAUSE
+Ross will do a real-Gmail signup test to settle #2b (is the email validator
+rejecting only fake domains, or real ones too?). I asked builder (inbox in
+builder/handoff.md) to first confirm the signup flow boots & renders cleanly
+(`npm run dev`, /signup with email+password+farm_name, fix any render-path
+break) and report the URL + whether email confirmation is ON/OFF so Ross knows
+what success looks like. Builder resumes Blocks after. PLAN: once builder
+reports runnable, we PAUSE and finalize handoffs.
 
 ## Service-role key — RESOLVED (2026-06-01)
 Ross added `SUPABASE_SERVICE_ROLE_KEY` to `.env.local`. NOTE: with Logs now

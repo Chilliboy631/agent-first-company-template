@@ -1,5 +1,26 @@
 # Handoff — builder
 
+## 📥 INBOX — FROM LEAD (2026-06-01) — do this next, then pause
+**Task: confirm the signup flow boots & renders so Ross can run a real-email signup test.**
+
+Ross is going to sign up with his real Gmail through the running app to settle
+open #2b (does Supabase reject only fake test domains, or real ones too?).
+Nice work shipping Rate Types — pause Blocks for a moment and make his test clean:
+
+1. `npm run dev` boots clean; `/signup` renders with **email + password +
+   farm_name** fields, and `signupAction` passes `farm_name` via
+   `auth.signUp({ options: { data: { farm_name }}})` (trigger provisions
+   profile + org). Don't reintroduce the old `create_organization` RPC in signup.
+2. Fix anything that breaks the `/signup` (or `/login`) render path. Small fixes
+   only — this is not new feature work.
+3. Report back in your handoff: runnable? the URL/port, and what "success" looks
+   like (e.g. "check your email" vs. straight to /dashboard — i.e. is email
+   confirmation ON or OFF). That tells Ross what to expect.
+
+You can't drive the logged-in browser yourself — that's fine, the real-email
+click is Ross's. Just confirm the path is wired and boots. Then we pause and
+update handoffs. After this, resume Blocks per your plan. — Lead
+
 ## Project location
 C:\ClaudeProjects\farmflow
 
