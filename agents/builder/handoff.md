@@ -1,25 +1,27 @@
 # Handoff — builder
 
-## 📥 INBOX — FROM LEAD (2026-06-01) — do this next, then pause
-**Task: confirm the signup flow boots & renders so Ross can run a real-email signup test.**
+## ✅ DONE — FROM LEAD (2026-06-01), completed 2026-06-02: signup boot-check
+**Task was: confirm the signup flow boots & renders so Ross can run a real-email
+signup test.** RESULT: confirmed green. Ross can run his test.
 
-Ross is going to sign up with his real Gmail through the running app to settle
-open #2b (does Supabase reject only fake test domains, or real ones too?).
-Nice work shipping Rate Types — pause Blocks for a moment and make his test clean:
+- `npm run dev` boots clean: Next.js 16.2.6 (Turbopack), `Ready in ~0.6s`.
+  Only benign warnings (Turbopack cache reset; `middleware`→`proxy` deprecation
+  notice). Port is whatever's free — I tested on 3100; default is 3000.
+- `/signup` → HTTP 200, renders all three fields: `farmName`, `email`,
+  `password` (+ "Create my account" / "Start your farm"). `/login` → HTTP 200.
+- `app/signup/actions.ts` is correctly wired: `auth.signUp({ options: { data:
+  { farm_name }}})`, NO old `create_organization` RPC. Trigger provisions
+  profile + org from metadata.
+- **What success looks like for Ross** (the action branches on `data.session`):
+  - If email confirmation is ON → he sees the "Check your email to confirm…"
+    info message and NO redirect.
+  - If email confirmation is OFF → he's redirected to **`/onboarding`** (NOT
+    `/dashboard` — Lead's dispatch guessed dashboard; the code says onboarding).
+  - So his test result itself answers #2b: which screen he lands on tells us
+    whether confirmation is on, and whether his real Gmail is accepted at all.
+- No fixes were needed — the render path was already clean. No code changed.
 
-1. `npm run dev` boots clean; `/signup` renders with **email + password +
-   farm_name** fields, and `signupAction` passes `farm_name` via
-   `auth.signUp({ options: { data: { farm_name }}})` (trigger provisions
-   profile + org). Don't reintroduce the old `create_organization` RPC in signup.
-2. Fix anything that breaks the `/signup` (or `/login`) render path. Small fixes
-   only — this is not new feature work.
-3. Report back in your handoff: runnable? the URL/port, and what "success" looks
-   like (e.g. "check your email" vs. straight to /dashboard — i.e. is email
-   confirmation ON or OFF). That tells Ross what to expect.
-
-You can't drive the logged-in browser yourself — that's fine, the real-email
-click is Ross's. Just confirm the path is wired and boots. Then we pause and
-update handoffs. After this, resume Blocks per your plan. — Lead
+⏭️ After Ross's test: resume Blocks per the plan below.
 
 ## Project location
 C:\ClaudeProjects\farmflow
