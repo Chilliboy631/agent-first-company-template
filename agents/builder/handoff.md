@@ -50,11 +50,26 @@ Both validate `auth.uid()` internally and only act on the caller's behalf.
 Ready for re-verify when you wake up.
 
 ## Currently in flight
-Phases 1 + 2 complete and live-verified. Up next: start replacing the demo
-engine surface by surface, beginning with the Logs page
+Phases 1 + 2 complete and live-verified. Starting the Logs surface migration
 (`app/(app)/logs/page.tsx`). Use `types/database.generated.ts` for any new
 real-data code; leave the hand-written `types/database.ts` alone (the demo
 engine still uses it).
+
+DONE (2026-06-01): added `lib/supabase/service.ts` — service-role client for
+the rate-resolution RPCs. Reads `SUPABASE_SERVICE_ROLE_KEY` at call time and
+throws a clear error until it's set. Typecheck clean. Server-only; never import
+from a browser component.
+
+BLOCKED: the rest of Logs needs `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`
+(still commented out). Without it no rate/price resolution → no snapshot → no
+log insert. Waiting on Ross to paste the service_role secret from the Supabase
+dashboard (Project Settings → API).
+
+Rate-resolution fns take `p_organization_id` and are SECURITY DEFINER (bypass
+RLS) — the Logs Server Action MUST derive org_id from the caller's membership
+(authenticated client read of organization_members), never trust client input.
+Live "rate that will be locked in" preview must round-trip to a debounced
+Server Action now that resolution is server-only.
 
 For each surface migration:
 1. Build a Supabase-backed Server Component / Server Action that reads
