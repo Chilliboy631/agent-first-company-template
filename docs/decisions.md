@@ -31,6 +31,29 @@ Which surfaces / agents / files this changes for.
 
 ---
 
+## 2026-06-02 — Number inputs: clean box, no steppers (working-as-designed)
+
+**Decided by:** Ross
+**Status:** active
+
+**What changed:**
+The global number-input CSS fix (`24a2c07`) intentionally removes the
+native up/down steppers (`appearance: textfield` + `::-webkit-*-spin-button`
+hidden) to fix the "squished" look. Ross's "stepper not working" report is
+therefore working-as-designed — builder closes that bug with no code change.
+The separate "R" prefix vertical-alignment bug in the rate-types add-version
+modal is a genuine cosmetic fix and still stands.
+
+**Why:**
+Ross prefers a clean number box over cramped native steppers. Removes the
+ambiguity builder flagged before touching it.
+
+**Affects:**
+`app/globals.css` (no change — confirmed correct), rate-types add-version
+input. Does not block the Activities surface.
+
+---
+
 ## 2026-05-31 — Schema migrated to farmflowV1 + real auth wired
 
 **Decided by:** Ross + builder

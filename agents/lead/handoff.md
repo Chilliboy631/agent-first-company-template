@@ -16,7 +16,25 @@ C:\ClaudeProjects\farmflow
 - **Newsletter / mailing list** — deferred (see decisions.md 2026-06-02). Emails
   already captured in auth.users; external tool, post-backend.
 
-## SESSION WRAP (2026-06-02, lead) — read this first
+## TODAY'S DIRECTION (2026-06-02, lead) — read this first
+Set this session. Builder's job today: **Activities surface (#3)** — next in the
+migration order, fully unblocked. Same `requireOrg()` + Server-Component-reads /
+Server-Action-writes pattern as Rate Types and Blocks. Bundle two small
+closeouts (≤15 min, not a detour):
+- **Stepper bug → CLOSED as working-as-designed.** Ross chose the clean
+  no-stepper number box; the steppers were removed on purpose by the global CSS
+  fix. No code change. (Recorded in decisions.md 2026-06-02.)
+- **"R"-prefix alignment fix** in `rate-types-client.tsx` add-version modal —
+  center the absolutely-positioned `R` (`top-1/2 -translate-y-1/2`), ensure
+  `pl-8` clears it at `text-xl`. Genuine cosmetic bug, still stands.
+
+The **browser-verify pass** (Rate Types empty state, Blocks CRUD, signup
+hardening, number inputs) is Ross's / runner's job in a logged-in session — NOT
+builder work, must not block Activities. Builder marches forward in parallel.
+
+No open decision after the stepper call. Roadmap order unchanged.
+
+## SESSION WRAP (2026-06-02, lead) — earlier this session
 End-of-session state. Builder is AWAKE and working (Ross woke it). Order of play
 for builder this session: it already shipped the two 🟢 signup/UX fixes (password
 hardening + global number-input CSS) + a hydration side-fix, all tsc-clean, and
