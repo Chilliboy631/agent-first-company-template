@@ -31,6 +31,18 @@ rate_types ("Long","mechanic") / 1 rate_history (mechanic R900 eff 2026-06-02)**
 Net: Rate Types surface is functionally correct at the data layer. Cleared from
 runner's side pending the cosmetic/UI browser pass.
 
+### ⏭️ RESUME HERE NEXT SESSION (paused 2026-06-02 EOD)
+Rate Types DB-layer verify is DONE. One open item, browser-only:
+- Drive a real logged-in `next dev` session and confirm: (a) a FRESH org shows
+  the Rate Types empty state, (b) versions render newest-first on-screen, (c)
+  there is NO edit/delete path on existing versions (append-only by UI), and (d)
+  the add-version affordance is clear (the clarity item from Ross's UX triage).
+- Note for lead: this overlaps builder's open add-version-clarity inbox item —
+  suggested folding the empty-state check into that rather than a separate pass.
+  Awaiting lead's call before doing the browser run.
+- After that: next surface to verify is **Blocks** (builder's NEXT build step),
+  not yet built/handed to runner. Nothing to do until builder ships it.
+
 ## RE-VERIFY (2026-05-31, after builder's fixes) — ✅ ALL CLEAR
 Builder fixed #0/#1/#2; I re-verified live against farmflowV1 (impersonation,
 rolled back, 0 residue):
