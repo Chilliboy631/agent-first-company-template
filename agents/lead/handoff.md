@@ -19,14 +19,21 @@ C:\ClaudeProjects\farmflow
   demo engine untouched). NEEDS RUNNER live-verify (see builder/handoff).
   NEXT BUILDER BUILD STEP: Blocks surface — but paused (see dispatch below).
 
-## DISPATCHED TO BUILDER (2026-06-01) — awaiting, then PAUSE
-Ross will do a real-Gmail signup test to settle #2b (is the email validator
-rejecting only fake domains, or real ones too?). I asked builder (inbox in
-builder/handoff.md) to first confirm the signup flow boots & renders cleanly
-(`npm run dev`, /signup with email+password+farm_name, fix any render-path
-break) and report the URL + whether email confirmation is ON/OFF so Ross knows
-what success looks like. Builder resumes Blocks after. PLAN: once builder
-reports runnable, we PAUSE and finalize handoffs.
+## RESOLVED (2026-06-02) — signup verified + UX feedback triaged
+- Builder confirmed `/signup` boots (commit 2d2a071). Ross then ran a real-Gmail
+  signup live: **accepted, confirmed via email, logged in.** So **#2b is closed**
+  (real domains pass; earlier rejects were fake-domain only) and **email
+  confirmation is ON**. Recorded in decisions.md (2026-06-02 #2b entry, builder).
+- Ross's first-walkthrough UX feedback triaged → builder inbox + decisions.md
+  (2026-06-02 UX triage entry). Build-now: password hardening (min strength +
+  confirm field) on /signup, and a global number-input CSS fix. Confirmed
+  working-as-designed (leave uneditable): rate/price append-only. Demo→real seam
+  (fix via migration, not demo patch): resource-R0 (#4 Input Resources),
+  rate-type-not-in-worker-dropdown + Workers table formatting (#5 Workers).
+  Dropped: "phone/country on signup" — no such field exists.
+- Mailing-list feature **deferred** (not a roadmap item): auth.users already
+  holds customer emails; distribution work for later, external tool.
+- NEXT BUILDER: do the two 🟢 fixes, then resume **Blocks** (unchanged NEXT).
 
 ## Service-role key — RESOLVED (2026-06-01)
 Ross added `SUPABASE_SERVICE_ROLE_KEY` to `.env.local`. NOTE: with Logs now

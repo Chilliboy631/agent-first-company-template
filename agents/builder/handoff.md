@@ -1,5 +1,48 @@
 # Handoff — builder
 
+## 📥 INBOX — FROM LEAD (2026-06-02) — UI feedback from Ross's first real signup
+Ross signed up live (real Gmail, email-confirm ON — both confirmed working) and
+walked the app. His feedback, triaged. Do the 🟢 items, then resume Blocks.
+
+🟢 **DO NOW — both small, both on already-real / global surfaces:**
+1. **Password hardening on `/signup`** (real auth surface). Currently accepts
+   `123456` and has no re-enter field. Add: a minimum-strength rule (enforce in
+   `signupAction` server-side too, not just client) AND a confirm-password
+   field that must match. Keep the premium/calm styling. This is Phase-2
+   hardening, not new scope — fine to slot in.
+2. **Number inputs look squished** (placeholders cramped). Global CSS — fix in
+   `app/globals.css` (the `.input` / number-input rule) so it applies
+   everywhere, not per-page.
+
+🟡 **WORKING AS DESIGNED — do NOT add edit-in-place:**
+- Ross reported "can't change rates or prices." Correct — that's the #1 rule
+  (append-only `rate_history` / `input_price_history` = historical integrity).
+  The amount is set ONLY via "add new version," never edited. The only allowed
+  improvement is CLARITY of the add-version flow on the real Rate Types surface
+  (e.g. clearer affordance/label). Editability stays off. Don't "fix" this.
+
+🔵 **DEMO→REAL SEAM — resolves on migration, do NOT patch demo:**
+- "New resource is R0, no way to set price" → Resources page is still the demo
+  engine. Fix lands when **Input Resources (#4)** is migrated: the create flow
+  must let the user set an initial price (writes the first
+  `input_price_history` version), with proper add-version UX after.
+- "New rate type can't be applied to a new worker" → Workers page is still demo
+  (and uses the wrong `rate_type_id` col). A demo dropdown can't see a real
+  rate type. Resolves when **Workers (#5)** is migrated.
+- **Workers table formatting** (`app/(app)/workers/page.tsx`) — fold these into
+  the #5 migration, don't patch demo standalone:
+  - 4th column has a blank `<th>` with a faint right-aligned "Active" — orphaned.
+    Make it a labelled **Status** column with a proper badge, OR an actions
+    (edit/remove) column. Right now it's neither.
+  - "Active" is HARDCODED (line ~66), not read from worker data.
+  - "Employment" header → rename to "Type" (shows `worker_type`).
+  - No edit/remove affordance despite the empty column implying one.
+
+DROPPED: the "country code / 27 on signup" report — there is no phone/country
+field anywhere in the codebase; Ross confirmed he misread (autofill/other tab).
+
+⏭️ **After the 🟢 fixes: resume Blocks** (your existing NEXT, unchanged).
+
 ## ✅ DONE — FROM LEAD (2026-06-01), completed 2026-06-02: signup boot-check
 **Task was: confirm the signup flow boots & renders so Ross can run a real-email
 signup test.** RESULT: confirmed green. Ross can run his test.

@@ -175,5 +175,40 @@ working against `farmflowV1` with a real account.
 - `app/signup/*` confirmed working as-is; no code change needed.
 - Next builder step: resume the Blocks surface per the 2026-06-01 roadmap.
 
+## 2026-06-02 — First real-user UX triage + mailing-list deferral
+
+**Decided by:** Ross + lead
+**Status:** active
+
+**What changed:**
+Triaged Ross's UX feedback from his first live walkthrough (signup → app).
+Build-now items (both small): (a) password hardening on `/signup` — enforce a
+minimum strength server-side AND add a confirm-password field (currently
+`123456` passes, no re-enter); (b) a global number-input CSS fix (squished
+placeholders) in `app/globals.css`. Confirmed **working as designed, leave
+uneditable**: "can't change rates/prices" — append-only history IS the #1 rule;
+only the "add new version" flow's clarity may improve. Confirmed **demo→real
+seam, fix via migration not demo patching**: new-resource-R0 (→ Input Resources
+#4) and rate-type-absent-from-worker-dropdown + Workers table formatting (→
+Workers #5). Dropped the "phone/country code on signup" report — no such field
+exists; Ross misread. Separately, a **newsletter/mailing-list feature is
+deferred** (not a roadmap item): `auth.users` already captures customer emails,
+and lead-capture/broadcast is post-backend distribution work for an external
+tool.
+
+**Why:**
+- Keeps Phase 3 on its agreed order; the only pulled-forward work is cheap
+  Phase-2 hardening / global styling, not scope creep.
+- Reaffirms historical integrity: rate/price editability stays off.
+- "Don't patch the demo engine" — demo-layer oddities are fixed by replacing
+  the surface, not repairing throwaway code.
+- Mailing list has no current user need; distribution comes after the product
+  works, and the list already exists implicitly.
+
+**Affects:**
+- `agents/builder/handoff.md` (new inbox), `app/signup/*`, `app/globals.css`.
+- Workers-table formatting folded into the future #5 migration.
+- No roadmap reorder; mailing list logged as a deferred idea, not a phase.
+
 (Add new decision entries above this line. Do not delete this template
 section; it's the reference for how new entries should look.)
