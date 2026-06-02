@@ -31,17 +31,52 @@ rate_types ("Long","mechanic") / 1 rate_history (mechanic R900 eff 2026-06-02)**
 Net: Rate Types surface is functionally correct at the data layer. Cleared from
 runner's side pending the cosmetic/UI browser pass.
 
+## NEW SOURCES VERIFY (2026-06-02, later) — ✅ DB/CODE GREEN
+Verified the two commits that landed after the Rate Types pass:
+`24a2c07` (signup hardening + number CSS) and `d31728e` (Blocks surface).
+`npx tsc --noEmit` → exit 0.
+- **Signup password policy + confirm field (24a2c07) ✅ code-verified.**
+  `app/signup/actions.ts` enforces ≥8 chars + a letter + a number server-side
+  (authoritative), then rejects mismatched confirm. `app/signup/page.tsx`
+  mirrors it (minLength=8, pattern, required confirmPassword). NOT browser-run
+  (weak-pw + mismatch rejection on the rendered form) — logic is unambiguous.
+- **Number-input CSS (24a2c07) ✅.** globals.css strips WebKit spin buttons +
+  sets `appearance:textfield` (moz+std) for all `input[type=number]`. Correct,
+  cross-browser. Visual polish needs a browser glance only.
+- **Blocks surface (d31728e) ✅ DB-layer fully verified.** Schema matches the
+  actions exactly (area_ha, code, parent_id, status, deleted_at, created_by —
+  no column drift). status CHECK = active/inactive/archived matches STATUSES.
+  Full-CRUD RLS via `current_user_org_ids()`. Live impersonation test (real
+  owner, rolled back): create + child-via-parent_id + status update + leaf
+  soft-delete all succeed under RLS → owner_active=1; a 2nd-org user gets
+  stranger_sees_orgA=0 AND stranger_update_rows=0 (cross-tenant write blocked).
+  delete-with-active-children guard is app-level (action refuses); DB allows it,
+  so the guard must stay in code — verified present. blocks-client.tsx UI render
+  (tree, parent dropdown, edit/remove affordances) NOT browser-verified.
+- **BONUS — real-tenant isolation (live data).** A 2nd real account appeared
+  this session: `rossbarrett72@gmail.com` / org "em" (Ross testing). NOT my
+  residue (my test rows all rolled back; confirmed). Used the two genuine orgs
+  to reconfirm RLS: Academia sees own 2 / 0 of em; em sees own 1 / 0 of
+  Academia. Strongest cross-tenant proof yet — real tenants.
+- Live DB now: 2 users / 2 orgs / 2 members / 3 rate_types / 3 rate_history /
+  0 blocks. All real (no test residue).
+
 ### ⏭️ RESUME HERE NEXT SESSION (paused 2026-06-02 EOD)
-Rate Types DB-layer verify is DONE. One open item, browser-only:
-- Drive a real logged-in `next dev` session and confirm: (a) a FRESH org shows
-  the Rate Types empty state, (b) versions render newest-first on-screen, (c)
-  there is NO edit/delete path on existing versions (append-only by UI), and (d)
-  the add-version affordance is clear (the clarity item from Ross's UX triage).
-- Note for lead: this overlaps builder's open add-version-clarity inbox item —
-  suggested folding the empty-state check into that rather than a separate pass.
-  Awaiting lead's call before doing the browser run.
-- After that: next surface to verify is **Blocks** (builder's NEXT build step),
-  not yet built/handed to runner. Nothing to do until builder ships it.
+Rate Types + Blocks + signup hardening are all DB/code-verified. Everything
+still open is **browser-only** — one `next dev` logged-in pass covers it all:
+- **Rate Types:** fresh-org empty state; versions newest-first on screen; no
+  edit/delete path on existing versions; add-version affordance clarity (Ross's
+  UX item — overlaps builder's open inbox item, suggest folding together).
+- **Signup:** rendered form rejects a weak password and a mismatched confirm
+  (server logic already verified; just needs the on-page confirmation).
+- **Number inputs:** visual glance that steppers are gone / placeholders aren't
+  cramped.
+- **Blocks UI (`blocks-client.tsx`):** tree render, parent dropdown excludes
+  self, edit/remove affordances, delete-with-children friendly error.
+- Awaiting lead's call on whether to do this browser pass now or fold into the
+  next surface's verify.
+- Next surface after Blocks (per roadmap) is **Activities** — not built yet.
+  Nothing for runner until builder ships it.
 
 ## RE-VERIFY (2026-05-31, after builder's fixes) — ✅ ALL CLEAR
 Builder fixed #0/#1/#2; I re-verified live against farmflowV1 (impersonation,
