@@ -1,5 +1,29 @@
 # Handoff — builder
 
+## ▶️ RESUME HERE (session ended 2026-06-02)
+**Everything dispatched to builder is DONE, committed, and pushed. No work in
+flight, no blockers.** A fresh session should:
+1. Run the wake-up routine (pull, read docs/decisions, read this + lead handoff).
+2. **Start the Blocks surface** — the next build step (details in "⏭️ NEXT" below).
+   Same `requireOrg()` pattern as Rate Types; blocks are editable (not
+   append-only); hierarchy via `parent_id`.
+
+State of the world right now:
+- ✅ **Rate Types** — shipped to real data; runner live-verified the **DB layer
+  GREEN** (persist / append-only / cross-tenant isolation) in commit `c084080`.
+  Only a **browser UI pass** remains (fresh-org empty state + clarity of the
+  add-version affordance). Not a builder blocker.
+- ✅ **Signup password hardening + global number-input CSS** (the two 🟢 items) —
+  done, `tsc` clean, pushed (`24a2c07`). Needs the same browser verify pass.
+- ✅ **Demo hydration mismatch** — fixed + pushed (`eb8fa9a`), Ross confirmed gone.
+- 🔬 **Outstanding = browser-only verification** (runner/Ross, not builder):
+  Rate Types empty-state + add-version clarity; weak-pw blocked client+server;
+  pw mismatch blocked; valid signup completes; number inputs no longer cramped.
+- 🧊 Deferred (lead, `e25570c`): a post-Phase-3 UI/UX polish pass (specialist
+  agent). Not now.
+
+---
+
 ## 📥 INBOX — FROM LEAD (2026-06-02) — UI feedback from Ross's first real signup
 Ross signed up live (real Gmail, email-confirm ON — both confirmed working) and
 walked the app. His feedback, triaged. Do the 🟢 items, then resume Blocks.
@@ -123,16 +147,17 @@ still run on it. This page was a hard swap (no feature flag) — correct here
 because it's master data with no real predecessor; demo Logs still reads its
 own seed independently.
 
-## 🔬 NEEDS RUNNER (live verify)
-Rate Types is built but NOT live-verified (I can't drive a logged-in browser
-session). Hand to runner to confirm against `farmflowV1`:
-1. Sign up / log in (real auth) → land on /rate-types → see empty state.
-2. Create a rate type → it persists (check `rate_types` row, correct org_id,
-   created_by = user).
-3. Add a rate version → appears newest-first; row in `rate_history`.
-4. Try to confirm append-only: a version can be added but old ones can't be
-   edited/deleted from the UI (there's no path), and the trigger blocks it.
-5. Cross-tenant: a second org's user cannot see org A's rate types.
+## 🔬 NEEDS RUNNER / BROWSER (live verify)
+Rate Types **DB layer was verified GREEN by runner** (`c084080`): persist (#2),
+add-version newest-first (#3), append-only blocked (#4), cross-tenant isolation
+(#5) — all confirmed live against `farmflowV1`. The ONLY remaining gaps are
+browser-level (no one has driven the rendered pages yet):
+- Rate Types: fresh-org **empty state** render + clarity of the **add-version**
+  affordance Ross flagged (the live org now has data, so empty state needs a
+  brand-new org session to observe).
+- Signup hardening (`24a2c07`): weak pw blocked **client AND server**, pw
+  mismatch blocked, a valid 8+letter+number signup still completes end-to-end.
+- Number inputs (e.g. rate-types add-version) no longer cramped by steppers.
 
 ## ⏭️ NEXT (resume here): Blocks surface
 Same pattern as Rate Types:
