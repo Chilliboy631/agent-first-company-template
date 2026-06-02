@@ -16,7 +16,27 @@ C:\ClaudeProjects\farmflow
 - **Newsletter / mailing list** — deferred (see decisions.md 2026-06-02). Emails
   already captured in auth.users; external tool, post-backend.
 
-## Currently in flight (updated 2026-06-01, lead)
+## SESSION WRAP (2026-06-02, lead) — read this first
+End-of-session state. Builder is AWAKE and working (Ross woke it). Order of play
+for builder this session: it already shipped the two 🟢 signup/UX fixes (password
+hardening + global number-input CSS) + a hydration side-fix, all tsc-clean, and
+is now on **Blocks** — the next surface in the migration order. Nothing blocking.
+
+State of the team going idle:
+- **Builder:** active on Blocks → then Activities → Input Resources → Workers →
+  Logs (last). Inbox fully triaged & mostly cleared (see builder/handoff.md).
+- **Runner:** idle, not blocked. One Rate Types live-verify queued; best woken
+  once Blocks lands so it verifies in batches (Rate Types + Blocks together).
+  CAUTION for runner: the real org now holds Ross's *test* data (2 rate types,
+  incl. mechanic R900) — he confirmed it's throwaway test data, but rate_history
+  can't be deleted (trigger); use rollback/second-org pattern, don't pollute.
+- **Lead (me):** idle. No open decision. Deferred initiatives logged above.
+
+NEXT TIME I WAKE: check builder's Blocks progress + whether runner has verified
+anything; otherwise just keep the migration marching in order. No new direction
+pending.
+
+## Currently in flight (updated 2026-06-02, lead)
 - Phase 1 (schema migration) ✅ done + live-verified by runner.
 - Phase 2 (auth + org creation on signup) ✅ done + live-verified. RLS
   recursion #0, missing-profiles #1, no-org-on-confirm #2 all fixed
@@ -30,7 +50,7 @@ C:\ClaudeProjects\farmflow
   Rate Types surface: ✅ builder shipped it to real data this session
   (`requireOrg()` tenant primitive added in `lib/supabase/org.ts`; tsc clean;
   demo engine untouched). NEEDS RUNNER live-verify (see builder/handoff).
-  NEXT BUILDER BUILD STEP: Blocks surface — but paused (see dispatch below).
+  BUILDER IS NOW ON the Blocks surface (no longer paused — see SESSION WRAP).
 
 ## RESOLVED (2026-06-02) — signup verified + UX feedback triaged
 - Builder confirmed `/signup` boots (commit 2d2a071). Ross then ran a real-Gmail
