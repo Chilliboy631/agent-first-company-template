@@ -4,6 +4,33 @@
 C:\ClaudeProjects\farmflow
 Supabase project: farmflowV1 (id `rokhyjnorqczidxyzarm`, eu-central-1)
 
+## RATE TYPES LIVE-VERIFY (2026-06-02) — ✅ DB-LAYER GREEN (assigned by lead)
+Verified the Rate Types real-data surface against farmflowV1. The DB is no
+longer empty: Ross's live walkthrough left **1 user / 1 org / 1 member / 2
+rate_types ("Long","mechanic") / 1 rate_history (mechanic R900 eff 2026-06-02)**
+— i.e. he already exercised the real UI write path. Findings:
+- **#2 createRateType persists ✅** — both real rate_types rows have
+  org_matches_member=true AND created_by=the real user. Org derived server-side
+  (requireOrg), not client input.
+- **#3 addRateVersion ✅** — the real rate_history row carries correct org +
+  created_by. Page reads `rate_history ORDER BY effective_from DESC` →
+  newest-first confirmed in `app/(app)/rate-types/page.tsx:23`.
+- **#4 append-only ✅** — live attempts BOTH blocked by
+  `prevent_rate_history_mutation`: UPDATE→"rows are immutable", DELETE→"cannot
+  be deleted… permanent audit records". rate_history also has no UPDATE/DELETE
+  RLS policy (INSERT+SELECT only).
+- **#5 cross-tenant isolation ✅** — impersonation test (real owner vs a genuine
+  2nd signup in its own org, all rolled back via final RAISE, zero residue
+  reconfirmed 1/1/1/2/1): owner_sees=2, stranger_total=0, stranger_sees_orgA=0.
+  RLS via `current_user_org_ids()` — no recursion.
+- **#1 empty-state UI — NOT verifiable here.** The live org now has data, so the
+  fresh-org empty state can't be observed on it. Needs a fresh-org browser
+  session. Populated render is implied working (Ross created the data via the
+  real UI). The only outstanding gap is browser-level: empty state + the
+  add-version affordance clarity Ross flagged.
+Net: Rate Types surface is functionally correct at the data layer. Cleared from
+runner's side pending the cosmetic/UI browser pass.
+
 ## RE-VERIFY (2026-05-31, after builder's fixes) — ✅ ALL CLEAR
 Builder fixed #0/#1/#2; I re-verified live against farmflowV1 (impersonation,
 rolled back, 0 residue):
