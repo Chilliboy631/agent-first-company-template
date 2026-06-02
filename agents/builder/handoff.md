@@ -4,15 +4,21 @@
 Ross signed up live (real Gmail, email-confirm ON — both confirmed working) and
 walked the app. His feedback, triaged. Do the 🟢 items, then resume Blocks.
 
-🟢 **DO NOW — both small, both on already-real / global surfaces:**
-1. **Password hardening on `/signup`** (real auth surface). Currently accepts
-   `123456` and has no re-enter field. Add: a minimum-strength rule (enforce in
-   `signupAction` server-side too, not just client) AND a confirm-password
-   field that must match. Keep the premium/calm styling. This is Phase-2
-   hardening, not new scope — fine to slot in.
-2. **Number inputs look squished** (placeholders cramped). Global CSS — fix in
-   `app/globals.css` (the `.input` / number-input rule) so it applies
-   everywhere, not per-page.
+🟢 **DONE (2026-06-02) — both shipped, tsc clean, /signup renders green:**
+1. ✅ **Password hardening on `/signup`** — rule chosen by Ross: **8+ chars,
+   must contain a letter AND a number**. Enforced server-side in
+   `app/signup/actions.ts` (authoritative) and mirrored client-side on the form
+   via HTML5 `minLength={8}` + `pattern="(?=.*[A-Za-z])(?=.*\d).{8,}"` + `title`.
+   Added a **Confirm password** field (`confirmPassword`); mismatch → server
+   returns "Passwords do not match." Added a calm hint line under the password
+   field. `/login` left untouched (existing users). Match is enforced
+   server-side only (no client-side live match yet — possible future polish).
+2. ✅ **Number inputs squished** — added a global rule in `app/globals.css`
+   (after the `input[type="date"]` block) stripping the native number steppers
+   (`::-webkit-*-spin-button` + `appearance: textfield`). Applies everywhere.
+NEEDS RUNNER live-verify (I can't drive the logged-in browser): weak pw blocked
+both client+server, mismatch blocked, valid signup still completes; and number
+inputs (e.g. rate-types add-version) no longer cramped.
 
 🟡 **WORKING AS DESIGNED — do NOT add edit-in-place:**
 - Ross reported "can't change rates or prices." Correct — that's the #1 rule
