@@ -3,6 +3,19 @@
 ## Project location
 C:\ClaudeProjects\farmflow
 
+## DEFERRED INITIATIVES (not roadmap items yet — don't start early)
+- **Dedicated UI/UX polish pass via a specialist agent** (Ross, 2026-06-02).
+  Goal: make FarmFlow look/feel like a high-end SaaS costing system and be
+  "extremely user-friendly." TIMING: only AFTER Phase 3 (all surfaces migrated
+  to real data) is complete — ideally folded in with Phase 5 onboarding polish.
+  Reason to wait: polishing demo-engine screens that will be torn out during
+  migration is wasted work. Brief should absorb Ross's standing UX notes:
+  quantity/number inputs feel small, numbers hard to read (NOTE: builder shipped
+  a global number-input CSS fix 2026-06-02 — stepper strip — which may partially
+  address this; verify before re-listing). Do NOT spin this up mid-migration.
+- **Newsletter / mailing list** — deferred (see decisions.md 2026-06-02). Emails
+  already captured in auth.users; external tool, post-backend.
+
 ## Currently in flight (updated 2026-06-01, lead)
 - Phase 1 (schema migration) ✅ done + live-verified by runner.
 - Phase 2 (auth + org creation on signup) ✅ done + live-verified. RLS
