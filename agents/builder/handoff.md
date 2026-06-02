@@ -1,5 +1,31 @@
 # Handoff — builder
 
+## 🌅 TOMORROW (2026-06-03) — Ross's browser pass + 1 bug to chase
+**Ross is doing the live browser-verify pass tomorrow (he asked to be reminded).**
+He has the logged-in session; builder can't drive it. Checklist:
+- [ ] **Blocks CRUD** on `/blocks` — his org has 0 blocks, so he'll see the new
+      empty state; create one, set a parent on a 2nd, edit, remove.
+- [ ] **Signup hardening** — weak pw (`12345678`) + mismatched confirm both blocked.
+- [ ] **Rate Types** — empty-state + add-version affordance clarity.
+- [ ] **Number-input spacing** (see bug below).
+
+🐞 **BUG Ross already spotted (2026-06-02 eve) — chase tomorrow: number-input
+STEPPER "not working".** He saw a value `93,6` on a number field (comma decimal
+= en-ZA browser locale; matches the rate-types add-version default 90×1.04 =
+93.6). **Most likely cause:** my `app/globals.css` fix set
+`input[type="number"] { appearance: textfield }` + `::-webkit-*-spin-button {
+-webkit-appearance: none }`, which **removes the up/down steppers by design** (to
+fix the "squished" report). So "stepper not working" = they're intentionally
+gone. **NEEDS ROSS'S INTENT before fixing:** (a) "no steppers, clean number box"
+→ current behaviour is correct, the squish is fixed; or (b) "keep working
+steppers, just not cramped" → revert the spinner-removal and instead give the
+field padding/min-width so native steppers aren't squeezed. Also verify (don't
+assume) the comma-decimal value parses on submit — `type=number` `.value`
+should normalise to a dot, and the actions use `parseFloat`, so it *should* be
+fine; confirm in the browser. Ross will look at the rest tomorrow.
+
+---
+
 ## ▶️ RESUME HERE (session ended 2026-06-02)
 **Everything dispatched to builder is DONE, committed, and pushed. No work in
 flight, no blockers.** A fresh session should:
