@@ -4,23 +4,24 @@
 **Everything dispatched to builder is DONE, committed, and pushed. No work in
 flight, no blockers.** A fresh session should:
 1. Run the wake-up routine (pull, read docs/decisions, read this + lead handoff).
-2. **Start the Blocks surface** — the next build step (details in "⏭️ NEXT" below).
-   Same `requireOrg()` pattern as Rate Types; blocks are editable (not
-   append-only); hierarchy via `parent_id`.
+2. **Start the Activities surface** (#3) — the next build step. Same
+   `requireOrg()` + Server-Component-reads / Server-Action-writes pattern as
+   Rate Types and Blocks. Read the demo `app/(app)/activities/page.tsx` first to
+   match shape, and check the real `activities` columns in
+   `types/database.generated.ts` (don't trust the demo's field names).
 
 State of the world right now:
-- ✅ **Rate Types** — shipped to real data; runner live-verified the **DB layer
-  GREEN** (persist / append-only / cross-tenant isolation) in commit `c084080`.
-  Only a **browser UI pass** remains (fresh-org empty state + clarity of the
-  add-version affordance). Not a builder blocker.
-- ✅ **Signup password hardening + global number-input CSS** (the two 🟢 items) —
-  done, `tsc` clean, pushed (`24a2c07`). Needs the same browser verify pass.
+- ✅ **Rate Types** (#1) — shipped to real data; runner live-verified the **DB
+  layer GREEN** (persist / append-only / cross-tenant isolation) in `c084080`.
+  Only a browser UI pass remains (empty state + add-version clarity).
+- ✅ **Blocks** (#2) — shipped this session (real data, full CRUD: create / edit
+  / soft-delete). `tsc` clean; route compiles (`/blocks` → 307 to /login
+  unauth'd, no 500). NOT yet browser-verified (needs an authed session).
+- ✅ **Signup password hardening + global number-input CSS** — pushed (`24a2c07`).
 - ✅ **Demo hydration mismatch** — fixed + pushed (`eb8fa9a`), Ross confirmed gone.
 - 🔬 **Outstanding = browser-only verification** (runner/Ross, not builder):
-  Rate Types empty-state + add-version clarity; weak-pw blocked client+server;
-  pw mismatch blocked; valid signup completes; number inputs no longer cramped.
-- 🧊 Deferred (lead, `e25570c`): a post-Phase-3 UI/UX polish pass (specialist
-  agent). Not now.
+  see the "🔬 NEEDS RUNNER / BROWSER" section — now includes Blocks CRUD.
+- 🧊 Deferred (lead, `e25570c`): a post-Phase-3 UI/UX polish pass. Not now.
 
 ---
 
@@ -158,15 +159,44 @@ browser-level (no one has driven the rendered pages yet):
 - Signup hardening (`24a2c07`): weak pw blocked **client AND server**, pw
   mismatch blocked, a valid 8+letter+number signup still completes end-to-end.
 - Number inputs (e.g. rate-types add-version) no longer cramped by steppers.
+- **Blocks CRUD** (this session): create a block (persists, org_id + created_by
+  correct); set a parent → hierarchy shows; edit name/code/area/parent/status;
+  soft-delete (block disappears, row keeps `deleted_at`); removing a block with
+  active sub-blocks is refused; cross-tenant isolation (org B can't see/edit
+  org A's blocks). Empty state shows for a fresh org.
 
-## ⏭️ NEXT (resume here): Blocks surface
-Same pattern as Rate Types:
-1. `app/(app)/blocks/page.tsx` → Server Component, read via requireOrg.
-2. `app/(app)/blocks/actions.ts` → create/update block (blocks ARE editable,
-   not append-only). Hierarchy via `parent_id`. Watch `status` (active/inactive)
-   and `deleted_at`.
-3. Reuse `requireOrg()`. Read the demo blocks page first to match the shape.
-4. Keep demo engine running for the not-yet-migrated surfaces.
+## ✅ DONE this session (2026-06-02): Blocks cut over to real data (#2)
+Second master-data surface. Full CRUD (blocks are mutable + soft-deletable —
+NOT append-only like rates). Files:
+- `app/(app)/blocks/actions.ts` — `createBlock`, `updateBlock`, `deleteBlock`.
+  All derive org via `requireOrg` (never client input); RLS double-enforces.
+  `deleteBlock` is a SOFT delete (sets `deleted_at`) — labour/input logs FK to
+  `block_id`, so historical logs must keep pointing at their block; it also
+  refuses to remove a block that still has active children (no orphans).
+  `updateBlock` blocks self-parent; status validated to active/inactive/archived.
+- `app/(app)/blocks/page.tsx` — Server Component, reads blocks under RLS
+  (`deleted_at IS NULL`, ordered by created_at), `force-dynamic`.
+- `app/(app)/blocks/blocks-client.tsx` — table (name/code/parent/area/status +
+  edit/remove actions), add-form, edit modal, empty state, status badges,
+  useTransition + router.refresh(). Shared `BlockFields` sub-component.
+- Real schema gotcha handled: column is **`area_ha`** (not the demo's
+  `area_hectares`); real blocks have `code` + `status` and NO `crop`/`variety`
+  (those were demo-only). No unique constraint on name → duplicates allowed
+  (no 23505 handling needed). Verified live: blocks has all 4 per-operation RLS
+  policies via `current_user_org_ids()`.
+`tsc` clean; `/blocks` compiles (307 → /login unauth'd). Demo engine untouched
+for the other surfaces. The demo `blocks` page was hard-swapped (no flag).
+
+## ⏭️ NEXT (resume here): Activities surface (#3)
+Same pattern as Rate Types / Blocks:
+1. Read the demo `app/(app)/activities/page.tsx` to match shape, and the real
+   `activities` columns in `types/database.generated.ts` (don't trust demo
+   field names — same lesson as Blocks' `area_ha`).
+2. `app/(app)/activities/page.tsx` → Server Component, read via requireOrg.
+3. `app/(app)/activities/actions.ts` → create/update (activities are editable;
+   check for soft-delete + any unique constraint before assuming 23505 handling).
+4. `app/(app)/activities/activities-client.tsx` → UI in the same premium style.
+5. Reuse `requireOrg()`. Keep the demo engine running for not-yet-migrated pages.
 
 ## Gotchas / don't lose this
 - `workers` column is `default_rate_type_id` (NOT `rate_type_id`). The demo
