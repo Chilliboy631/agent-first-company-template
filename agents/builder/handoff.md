@@ -24,6 +24,18 @@ assume) the comma-decimal value parses on submit — `type=number` `.value`
 should normalise to a dot, and the actions use `parseFloat`, so it *should* be
 fine; confirm in the browser. Ross will look at the rest tomorrow.
 
+🐞 **BUG #2 (same field, 2026-06-02 eve): the "R" prefix sits OVER/UNDER the
+number — vertical alignment / formatting problem.** This is the prefixed amount
+input in `app/(app)/rate-types/rate-types-client.tsx` (add-version modal):
+`<div className="relative"><div className="absolute left-4 top-3.5 ...">R</div>
+<input className="input pl-8 text-xl font-semibold" /></div>`. The absolutely-
+positioned `R` (`top-3.5`) doesn't line up with the `text-xl` value baseline, so
+it reads as overlapping. FIX next session: align the prefix to the input's
+vertical centre (e.g. wrap input row in `flex items-center`, or position the `R`
+with `top-1/2 -translate-y-1/2`, and make sure `pl-8` clears it at `text-xl`).
+Check the same prefixed-input pattern isn't reused elsewhere with the same
+misalignment. Low-risk cosmetic; bundle with the stepper decision above.
+
 ---
 
 ## ▶️ RESUME HERE (session ended 2026-06-02)
