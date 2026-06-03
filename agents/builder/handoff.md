@@ -38,15 +38,51 @@ misalignment. Low-risk cosmetic; bundle with the stepper decision above.
 
 ---
 
-## ▶️ RESUME HERE (session ended 2026-06-02)
-**Everything dispatched to builder is DONE, committed, and pushed. No work in
-flight, no blockers.** A fresh session should:
+## ▶️ RESUME HERE (session 2026-06-03) — Activities DONE, next = Input Resources (#4)
+**Activities (#3) is shipped + DB-layer verified. No work in flight, no blockers.**
+A fresh session should:
 1. Run the wake-up routine (pull, read docs/decisions, read this + lead handoff).
-2. **Start the Activities surface** (#3) — the next build step. Same
-   `requireOrg()` + Server-Component-reads / Server-Action-writes pattern as
-   Rate Types and Blocks. Read the demo `app/(app)/activities/page.tsx` first to
-   match shape, and check the real `activities` columns in
-   `types/database.generated.ts` (don't trust the demo's field names).
+2. **Start the Input Resources surface** (#4) — the next build step. Same
+   `requireOrg()` + Server-Component-reads / Server-Action-writes pattern.
+   GOTCHA: Resources have **append-only price versions** via
+   `input_price_history` (like rate_types/rate_history) — the create flow must
+   let the user set an initial price (writes the first price version), with an
+   add-version flow after (NO edit-in-place on prices = historical integrity).
+   Check real columns in `types/database.generated.ts`
+   (`input_resources` + `input_price_history`) — don't trust demo field names.
+   Resolves Ross's "new resource is R0, no way to set price" feedback.
+
+## ✅ DONE this session (2026-06-03): Activities cut over to real data (#3)
+Third master-data surface. Activities are editable + soft-deletable current-state
+data (NOT append-only). Files:
+- `app/(app)/activities/actions.ts` — `createActivity`, `updateActivity`,
+  `deleteActivity` (soft). All derive org via `requireOrg` (never client input);
+  RLS double-enforces. Handles the partial unique index on
+  `(organization_id, name) WHERE deleted_at IS NULL` → friendly 23505 message on
+  duplicate active name. Soft-delete sets `deleted_at` (labour_logs FK
+  `activity_id`, so history must keep pointing at its activity); soft-delete also
+  frees the name for reuse (partial index).
+- `app/(app)/activities/page.tsx` — now a Server Component; reads activities under
+  RLS (`deleted_at IS NULL`, ordered by created_at), `force-dynamic`.
+- `app/(app)/activities/activities-client.tsx` — table (name / category / status
+  + edit/remove), add-form, edit modal, empty state, `is_active` toggle, category
+  free-text with a `<datalist>` of common suggestions. Shared `ActivityFields`
+  sub-component. useTransition + router.refresh().
+- Schema (`types/database.generated.ts`): activities = id, name, **category**
+  (free text, nullable), **is_active** (bool, default true), metadata, deleted_at,
+  created_by, org_id. No `parent`/`area`/`crop` — simpler than blocks.
+`npx tsc --noEmit` → clean (exit 0). Committed `e039dd9`. Demo engine untouched
+for the other surfaces; the demo activities page was hard-swapped (no flag).
+**DB-layer verified live by builder** (farmflowV1, rolled-back impersonation,
+zero residue): insert persists with correct org + created_by + is_active default;
+duplicate active name blocked (23505); em user sees 0 of Academia's activities
+AND cross-tenant UPDATE affects 0 rows. All 4 per-op RLS policies confirmed
+present via `current_user_org_ids()`.
+**Still browser-only (needs an authed session):** empty-state render, add/edit/
+remove click-through, category datalist UX.
+
+## ▶️ (superseded) prior resume — Activities was NEXT (now done above)
+The block below was the 2026-06-02 resume note. Kept for history.
 
 State of the world right now:
 - ✅ **Rate Types** (#1) — shipped to real data; runner live-verified the **DB

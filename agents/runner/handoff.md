@@ -61,9 +61,27 @@ Verified the two commits that landed after the Rate Types pass:
 - Live DB now: 2 users / 2 orgs / 2 members / 3 rate_types / 3 rate_history /
   0 blocks. All real (no test residue).
 
-### ⏭️ RESUME HERE NEXT SESSION (paused 2026-06-02 EOD)
-Rate Types + Blocks + signup hardening are all DB/code-verified. Everything
-still open is **browser-only** — one `next dev` logged-in pass covers it all:
+## ACTIVITIES SHIPPED (2026-06-03) — builder did a DB-layer pre-verify
+Builder shipped the Activities surface (#3, commit `e039dd9`) and ran a
+rolled-back impersonation test against farmflowV1 (zero residue, confirmed
+activities count back to 0):
+- insert persists with correct org + created_by + is_active default true ✅
+- duplicate active name blocked (23505) via the partial unique index ✅
+- cross-tenant isolation: em user sees 0 of Academia's activities AND a
+  cross-tenant UPDATE affects 0 rows ✅
+- all 4 per-operation RLS policies present via `current_user_org_ids()` ✅
+- `npx tsc --noEmit` clean.
+**Runner still owes a browser pass** (builder can't drive an authed session):
+empty-state render, create/edit/soft-delete click-through, the category
+`<datalist>` suggestions, and that a soft-deleted name can be reused. Fold this
+into the same logged-in pass as Rate Types/Blocks below.
+
+### ⏭️ RESUME HERE NEXT SESSION (paused 2026-06-02 EOD; Activities added 2026-06-03)
+Rate Types + Blocks + signup hardening + Activities are all DB/code-verified.
+Everything still open is **browser-only** — one `next dev` logged-in pass covers
+it all:
+- **Activities:** empty state; create/edit/soft-delete; category datalist;
+  duplicate-name friendly error; reuse a removed activity's name.
 - **Rate Types:** fresh-org empty state; versions newest-first on screen; no
   edit/delete path on existing versions; add-version affordance clarity (Ross's
   UX item — overlaps builder's open inbox item, suggest folding together).
