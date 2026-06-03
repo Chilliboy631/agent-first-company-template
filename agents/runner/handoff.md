@@ -61,6 +61,30 @@ Verified the two commits that landed after the Rate Types pass:
 - Live DB now: 2 users / 2 orgs / 2 members / 3 rate_types / 3 rate_history /
   0 blocks. All real (no test residue).
 
+## LOGS SHIPPED (2026-06-03) — builder did the full historical-integrity DB pre-verify
+Builder shipped the Logs surface (#6, commit `b45954b`) — the heart of the
+product, and the LAST data-layer cutover. Rolled-back test against farmflowV1
+(zero residue confirmed: labour_logs + input_logs back to 0):
+- as-of resolution returns the correct rate version for the work date ✅
+- an 8h labour log SNAPSHOTS rate=R50.00 → total_cost=R400.00 (computed
+  server-side) ✅
+- **after inserting a NEWER rate (R80 eff later), the stored log STAYS R50/400 —
+  historical integrity holds** ✅✅ (the #1 product rule, proven)
+- a later date re-resolves to R80 (new rate applies going forward) ✅
+- a date BEFORE any rate version resolves nothing → the action refuses (no
+  zero-cost log) ✅
+- cross-tenant: em sees 0 of Academia's labour_logs ✅
+- labour_logs + input_logs both have full CRUD RLS; `npx tsc --noEmit` clean.
+**Runner still owes a browser pass** (this is the big one — it's the core
+demo-able feature): drive both forms end-to-end with a logged-in real org that
+has master data; confirm the live preview updates as worker/date/resource change;
+log something with an OLD date, then add a new rate version on Rate Types, and
+confirm the past log's total is unchanged on the Logs recent-entries table AND in
+Reports once those are wired; confirm the SetupNeeded guard shows for a fresh org.
+NOTE for runner: resolution fns are service-role-only and called from the Server
+Action; the browser never calls them. The on-screen preview is a client-side
+mirror (display only) — the authoritative number is the server snapshot.
+
 ## WORKERS SHIPPED (2026-06-03) — builder did a DB-layer pre-verify; master data ALL real now
 Builder shipped the Workers surface (#5, commit `d8b3ad8`) — the last master-data
 surface. Rolled-back test against farmflowV1 (zero residue; workers back to 0):

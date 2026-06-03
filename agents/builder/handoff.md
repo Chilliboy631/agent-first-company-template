@@ -38,42 +38,62 @@ misalignment. Low-risk cosmetic; bundle with the stepper decision above.
 
 ---
 
-## ▶️ RESUME HERE (session 2026-06-03) — Workers DONE; ALL master data real. Next = LOGS (#6, the big one)
-**Activities (#3), Input Resources (#4), AND Workers (#5) are all shipped +
-DB-layer verified. Every master-data surface is now real. No work in flight.**
+## ▶️ RESUME HERE (session 2026-06-03) — LOGS DONE. Entire data-layer cutover complete. Next = Reports + Dashboard
+**Activities (#3), Input Resources (#4), Workers (#5), AND Logs (#6) are all
+shipped + DB-layer verified. Every master + transactional surface is now real.**
+The demo engine now only powers Reports, Dashboard, Settings, and the layout
+chrome. No work in flight.
 A fresh session should:
 1. Run the wake-up routine (pull, read docs/decisions, read this + lead handoff).
-2. **Start the Logs surface (#6) — LAST and most important.** Read
-   `docs/historical-integrity.md` FIRST, then the demo `app/(app)/logs/page.tsx`
-   to match shape. This is the heart of the product (labour + input logging).
-   The hard requirements:
-   - **Resolve rates/prices via the service-role client ONLY** —
-     `createServiceClient()` from `lib/supabase/service.ts` (key already set in
-     `.env.local`). Call `get_active_rate_history(p_organization_id, p_rate_type_id,
-     p_as_of_date)` and `get_active_input_price_history(p_organization_id,
-     p_input_resource_id, p_as_of_date)` from a Server Action — NEVER the browser
-     (they're service_role-only, revoked from anon+authenticated). ALWAYS pass the
-     org from requireOrg(), never client input. (Signatures confirmed: each
-     returns TABLE(<...>_id uuid, amount|unit_price numeric).)
-   - **Snapshot on insert.** labour_logs needs: worker_id, block_id, activity_id
-     (all NOT NULL), work_date, hours, rate_history_id (the resolved version id),
-     rate_amount (snapshot), total_cost (= hours × rate_amount), created_by.
-     input_logs needs: input_resource_id, input_price_history_id, block_id,
-     activity_id (nullable), work_date, quantity?, unit_of_measure (NOT NULL,
-     snapshot from the resource), unit_price (snapshot), total_cost, created_by.
-     VERIFY exact columns in `types/database.generated.ts` before coding (the
-     labour_logs Row is around line 374; input_logs nearby).
-   - If no active rate/price exists for the work_date, fail with a clean message
-     (there's a `require_active_rate` helper that raises — or check the lookup
-     returned a row). Don't insert a log with a null/zero rate.
-   - Forms need dropdowns of the now-real workers, blocks, activities (labour) and
-     resources, blocks, activities (inputs). Default a labour log's rate type from
-     the worker's default_rate_type_id but allow override (logs can override).
-   - Keep the demo engine running until Logs is fully cut over (it's the last
-     consumer besides Reports/Dashboard).
-3. After Logs: **Reports + Dashboard** can finally read real snapshot data
-   (currently demo). Then the app layout chrome (real org/user name + sign-out),
-   then Settings, then onboarding polish + Google OAuth (phases 4-5).
+2. **Wire Reports + Dashboard to real snapshot data.** These are READ-ONLY
+   aggregations — the easy-but-important part:
+   - Read `app/(app)/reports/page.tsx` + `app/(app)/dashboard/page.tsx` (both
+     demo) to match the shapes they render.
+   - Aggregate from `labour_logs` + `input_logs` SNAPSHOT columns
+     (rate_amount/unit_price/total_cost) — **NEVER** join to current rate_history/
+     input_price_history to recompute (docs/historical-integrity.md §4). Sum
+     `total_cost` grouped by block / activity / period.
+   - There are views that may help: `v_labour_costs` and `v_blocks_flat`
+     (security_invoker=true, so RLS applies). Check them before hand-rolling SQL.
+   - Server Components + requireOrg() + force-dynamic, same as the other surfaces.
+   - Keep `toLocaleString('en-ZA')` formatting deterministic (the hydration fix
+     in eb8fa9a pinned this — don't regress it).
+3. Then: app layout chrome (real org/user name + a real sign-out — still doesn't
+   exist anywhere), Settings, then phases 4-5 (Google OAuth, onboarding polish +
+   optional starter defaults).
+
+## ✅ DONE this session (2026-06-03): Logs cut over to real data (#6, LAST) — completes Phase 3 data layer
+The heart of the product. Labour + input logging with as-of resolution and the
+snapshot pattern. Files:
+- `app/(app)/logs/actions.ts` — `addLabourLog`, `addInputLog`. Both: validate
+  every referenced id belongs to the org (the log FKs are NOT org-scoped, so a
+  crafted request could otherwise point a log at another tenant's block/worker —
+  guard present), resolve the rate/price AS OF work_date via
+  `createServiceClient().rpc('get_active_rate_history' | 'get_active_input_price_history')`
+  (service-role-only fns; org always from requireOrg), then SNAPSHOT
+  rate_amount/rate_history_id/total_cost (labour) and
+  unit_price/input_price_history_id/unit_of_measure/total_cost (inputs). total_cost
+  computed server-side via money() rounding. Insert via the AUTHENTICATED client
+  so RLS double-enforces. If the lookup returns no row → clean refusal (no
+  zero-cost log), pointing to Rate Types / Resources.
+- `app/(app)/logs/page.tsx` — Server Component; reads master data + rate/price
+  history (for the live preview) + recent 10 labour & input logs, all parallel.
+- `app/(app)/logs/logs-client.tsx` — two-tab UI; live as-of PREVIEW
+  (`resolveAsOf`, display-only — comment says so; authoritative value is the
+  server snapshot, echoed back in the success toast via LogResult.rate/total),
+  recent-entries table, and a `SetupNeeded` guard that links to whatever master
+  data is missing. activity is optional for inputs (nullable col).
+- Confirmed signatures: get_active_rate_history(org, rate_type_id, date) →
+  TABLE(rate_history_id uuid, amount numeric); input variant →
+  TABLE(input_price_history_id uuid, unit_price numeric).
+`npx tsc --noEmit` → clean. Committed `b45954b`.
+**DB-layer verified live by builder** (farmflowV1, rolled-back, zero residue) —
+the full historical-integrity proof: as-of resolves the right version; an 8h log
+snapshots R50 → total R400; **after inserting a NEWER R80 rate the stored log
+STAYS R50/400**; a later date re-resolves to R80; a date before any version
+resolves nothing (action refuses); cross-tenant log isolation (em sees 0).
+**Still browser-only:** the two forms end-to-end, live preview updates on
+worker/date/resource change, the SetupNeeded guards, recent-entries render.
 
 ## ✅ DONE this session (2026-06-03): Workers cut over to real data (#5)
 Fifth master-data surface — completes the master-data cutover. Workers are
