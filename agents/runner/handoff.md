@@ -61,6 +61,26 @@ Verified the two commits that landed after the Rate Types pass:
 - Live DB now: 2 users / 2 orgs / 2 members / 3 rate_types / 3 rate_history /
   0 blocks. All real (no test residue).
 
+## INPUT RESOURCES SHIPPED (2026-06-03) — builder did a DB-layer pre-verify
+Builder shipped the Input Resources surface (#4, commit `6cd2a73`) and ran a
+rolled-back test against farmflowV1 (zero residue; resources + prices back to 0):
+- resource persists w/ correct org + created_by + unit_of_measure + is_active ✅
+- **as-of price resolution: earlier date → OLD price (R10), later date → NEW
+  price (R15)** — historical integrity holds via get_active_input_price_history ✅
+- input_price_history append-only: UPDATE *and* DELETE both blocked by
+  `trg_input_price_history_immutable` ✅
+- duplicate active name blocked (23505) ✅
+- cross-tenant: em user sees 0 of Academia's resources AND a cross-tenant UPDATE
+  affects 0 rows ✅
+- all per-op RLS policies present (input_resources full CRUD; input_price_history
+  INSERT+SELECT only); `npx tsc --noEmit` clean.
+**Runner still owes a browser pass:** empty state; create-with-initial-price (the
+"R0" fix); "Add new price" appends a version; edit/remove the master record;
+unit/category `<datalist>` suggestions; that past prices show newest-first and
+have no edit/delete path. Fold into the same logged-in pass as the others.
+Also note the bundled cosmetic fix `da7324b` (rate-types R-prefix centering) —
+glance that the R sits centered in the add-version amount field.
+
 ## ACTIVITIES SHIPPED (2026-06-03) — builder did a DB-layer pre-verify
 Builder shipped the Activities surface (#3, commit `e039dd9`) and ran a
 rolled-back impersonation test against farmflowV1 (zero residue, confirmed

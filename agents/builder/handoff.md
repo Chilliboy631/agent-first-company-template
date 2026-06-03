@@ -38,19 +38,76 @@ misalignment. Low-risk cosmetic; bundle with the stepper decision above.
 
 ---
 
-## ▶️ RESUME HERE (session 2026-06-03) — Activities DONE, next = Input Resources (#4)
-**Activities (#3) is shipped + DB-layer verified. No work in flight, no blockers.**
-A fresh session should:
+## ▶️ RESUME HERE (session 2026-06-03) — Resources DONE, next = Workers (#5)
+**Activities (#3) AND Input Resources (#4) are shipped + DB-layer verified. No
+work in flight, no blockers.** A fresh session should:
 1. Run the wake-up routine (pull, read docs/decisions, read this + lead handoff).
-2. **Start the Input Resources surface** (#4) — the next build step. Same
-   `requireOrg()` + Server-Component-reads / Server-Action-writes pattern.
-   GOTCHA: Resources have **append-only price versions** via
-   `input_price_history` (like rate_types/rate_history) — the create flow must
-   let the user set an initial price (writes the first price version), with an
-   add-version flow after (NO edit-in-place on prices = historical integrity).
-   Check real columns in `types/database.generated.ts`
-   (`input_resources` + `input_price_history`) — don't trust demo field names.
-   Resolves Ross's "new resource is R0, no way to set price" feedback.
+2. **Start the Workers surface** (#5) — the next build step. Same `requireOrg()`
+   + Server-Component-reads / Server-Action-writes pattern as the others.
+   GOTCHAS:
+   - The column is **`default_rate_type_id`** (NOT `rate_type_id`). The demo
+     engine + hand-written `types/database.ts` use the wrong name — use
+     `types/database.generated.ts` for all real code (same lesson as `area_ha`).
+   - Workers reference a rate type, so the create/edit form needs a dropdown of
+     the org's real rate_types (now that Rate Types is real, this finally works —
+     resolves Ross's "new rate type can't be applied to a new worker" feedback).
+   - Fold in the Workers-table formatting fixes from the 2026-06-02 lead inbox
+     (orphan blank `<th>` → proper Status column; "Active" is hardcoded, read it
+     from data; "Employment" header → "Type" showing `worker_type`; add
+     edit/remove affordances). Check the real `workers` columns first.
+   - Check for a partial unique index / soft-delete before assuming 23505 handling.
+3. After Workers, only **Logs (#6, LAST)** remains for master/transactional
+   cutover — it needs the service-role client (`createServiceClient()`,
+   `lib/supabase/service.ts`, key already set) to call `get_active_rate_history`
+   / `get_active_input_price_history` and snapshot rate_amount/total_cost/
+   unit_price on insert. Then Reports + Dashboard can read real snapshots.
+
+## ✅ DONE this session (2026-06-03): Input Resources cut over to real data (#4)
+Fourth master-data surface. Resources are editable + soft-deletable master data,
+but PRICES are append-only via `input_price_history` (immutability trigger +
+INSERT/SELECT-only policies — the rate_types/rate_history pattern). Files:
+- `app/(app)/resources/actions.ts` — `createResource` (inserts the resource AND
+  its first price version, so a new resource is never "R0 with no price"),
+  `addPriceVersion` (append-only; verifies resource∈org first), `updateResource`
+  (descriptive fields only — name/unit/category/active; NEVER price),
+  `deleteResource` (soft). All derive org via `requireOrg`; RLS double-enforces.
+  23505 handled on duplicate active name. Note: if the resource inserts but the
+  first price insert fails, the resource is created priceless and the UI shows
+  the "no price yet" + Add-price affordance (same model as a rate type with no
+  versions) — the action surfaces that as a message.
+- `app/(app)/resources/page.tsx` — Server Component; reads input_resources
+  (deleted_at null, by created_at) + input_price_history (by effective_from desc)
+  in parallel, `force-dynamic`.
+- `app/(app)/resources/resources-client.tsx` — per-resource cards with a price
+  timeline (newest first) + "Add new price" modal (rate-types pattern), PLUS
+  edit/remove on the master record (blocks/activities pattern), an integrity
+  banner, empty state, create form with initial price + effective date, and
+  free-text unit/category with `<datalist>` suggestions. The R-prefix in the
+  price inputs uses the centered `top-1/2 -translate-y-1/2` pattern.
+- Schema (`types/database.generated.ts`): input_resources = id, name,
+  **unit_of_measure** (NOT NULL, free text), category (nullable), is_active,
+  metadata, deleted_at, created_by, org. input_price_history = id,
+  input_resource_id, **unit_price**, effective_from, notes, created_by, org.
+`npx tsc --noEmit` → clean. Committed `6cd2a73`. Demo engine untouched elsewhere;
+demo resources page hard-swapped (no flag).
+**DB-layer verified live by builder** (farmflowV1, rolled-back, zero residue):
+persist w/ correct org + created_by + unit + is_active default; **as-of
+resolution returns the OLD price (R10) for an earlier date and the NEW price
+(R15) for a later date — historical integrity**; price UPDATE *and* DELETE both
+blocked by `trg_input_price_history_immutable`; duplicate-name 23505;
+cross-tenant read (em sees 0) AND write (em update → 0 rows) isolation.
+**Still browser-only:** empty state, create-with-price, add-price, edit/remove
+click-through, datalist UX.
+
+## 🧹 SIDE FIX (2026-06-03): R-prefix alignment in rate-types add-version modal
+The cosmetic bug lead/builder flagged (`top-3.5` didn't line up with the
+`text-xl` value). Fixed: `app/(app)/rate-types/rate-types-client.tsx` now uses
+`absolute left-4 top-1/2 -translate-y-1/2`. Committed `da7324b`. (The same
+centered pattern is used in the new resources price inputs from the start.)
+
+## ▶️ (superseded) prior resume — Activities was NEXT (now done)
+Activities (#3) was the prior resume target — shipped earlier this session, see
+its DONE entry below.
 
 ## ✅ DONE this session (2026-06-03): Activities cut over to real data (#3)
 Third master-data surface. Activities are editable + soft-deletable current-state
