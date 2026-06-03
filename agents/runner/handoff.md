@@ -61,6 +61,23 @@ Verified the two commits that landed after the Rate Types pass:
 - Live DB now: 2 users / 2 orgs / 2 members / 3 rate_types / 3 rate_history /
   0 blocks. All real (no test residue).
 
+## WORKERS SHIPPED (2026-06-03) — builder did a DB-layer pre-verify; master data ALL real now
+Builder shipped the Workers surface (#5, commit `d8b3ad8`) — the last master-data
+surface. Rolled-back test against farmflowV1 (zero residue; workers back to 0):
+- worker persists w/ correct org + created_by + default_rate_type_id + is_active ✅
+- **app-level org guard on the rate-type FK is load-bearing**: the bare
+  workers→rate_types FK is NOT org-scoped (verified: it permits assigning another
+  org's rate type at the DB level), so `resolveRateType()` in actions.ts validates
+  org before writing — present + correct ✅
+- cross-tenant: em sees 0 of Academia's workers AND a cross-tenant UPDATE → 0 rows ✅
+- full CRUD RLS via current_user_org_ids(); `npx tsc --noEmit` clean.
+**Runner still owes a browser pass:** empty state; create/edit/soft-delete; the
+default-rate-type dropdown lists the org's real rate types; the "no rate types yet"
+nudge links to /rate-types; duplicate names allowed (no unique constraint).
+NOTE: real columns are name / employee_code / default_rate_type_id / is_active —
+NO worker_type (demo-only). The old orphan "Employment"/hardcoded-"Active" column
+is gone, replaced by Employee code + Status + edit/remove.
+
 ## INPUT RESOURCES SHIPPED (2026-06-03) — builder did a DB-layer pre-verify
 Builder shipped the Input Resources surface (#4, commit `6cd2a73`) and ran a
 rolled-back test against farmflowV1 (zero residue; resources + prices back to 0):

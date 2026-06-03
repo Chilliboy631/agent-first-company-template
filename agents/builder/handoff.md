@@ -38,29 +38,70 @@ misalignment. Low-risk cosmetic; bundle with the stepper decision above.
 
 ---
 
-## ▶️ RESUME HERE (session 2026-06-03) — Resources DONE, next = Workers (#5)
-**Activities (#3) AND Input Resources (#4) are shipped + DB-layer verified. No
-work in flight, no blockers.** A fresh session should:
+## ▶️ RESUME HERE (session 2026-06-03) — Workers DONE; ALL master data real. Next = LOGS (#6, the big one)
+**Activities (#3), Input Resources (#4), AND Workers (#5) are all shipped +
+DB-layer verified. Every master-data surface is now real. No work in flight.**
+A fresh session should:
 1. Run the wake-up routine (pull, read docs/decisions, read this + lead handoff).
-2. **Start the Workers surface** (#5) — the next build step. Same `requireOrg()`
-   + Server-Component-reads / Server-Action-writes pattern as the others.
-   GOTCHAS:
-   - The column is **`default_rate_type_id`** (NOT `rate_type_id`). The demo
-     engine + hand-written `types/database.ts` use the wrong name — use
-     `types/database.generated.ts` for all real code (same lesson as `area_ha`).
-   - Workers reference a rate type, so the create/edit form needs a dropdown of
-     the org's real rate_types (now that Rate Types is real, this finally works —
-     resolves Ross's "new rate type can't be applied to a new worker" feedback).
-   - Fold in the Workers-table formatting fixes from the 2026-06-02 lead inbox
-     (orphan blank `<th>` → proper Status column; "Active" is hardcoded, read it
-     from data; "Employment" header → "Type" showing `worker_type`; add
-     edit/remove affordances). Check the real `workers` columns first.
-   - Check for a partial unique index / soft-delete before assuming 23505 handling.
-3. After Workers, only **Logs (#6, LAST)** remains for master/transactional
-   cutover — it needs the service-role client (`createServiceClient()`,
-   `lib/supabase/service.ts`, key already set) to call `get_active_rate_history`
-   / `get_active_input_price_history` and snapshot rate_amount/total_cost/
-   unit_price on insert. Then Reports + Dashboard can read real snapshots.
+2. **Start the Logs surface (#6) — LAST and most important.** Read
+   `docs/historical-integrity.md` FIRST, then the demo `app/(app)/logs/page.tsx`
+   to match shape. This is the heart of the product (labour + input logging).
+   The hard requirements:
+   - **Resolve rates/prices via the service-role client ONLY** —
+     `createServiceClient()` from `lib/supabase/service.ts` (key already set in
+     `.env.local`). Call `get_active_rate_history(p_organization_id, p_rate_type_id,
+     p_as_of_date)` and `get_active_input_price_history(p_organization_id,
+     p_input_resource_id, p_as_of_date)` from a Server Action — NEVER the browser
+     (they're service_role-only, revoked from anon+authenticated). ALWAYS pass the
+     org from requireOrg(), never client input. (Signatures confirmed: each
+     returns TABLE(<...>_id uuid, amount|unit_price numeric).)
+   - **Snapshot on insert.** labour_logs needs: worker_id, block_id, activity_id
+     (all NOT NULL), work_date, hours, rate_history_id (the resolved version id),
+     rate_amount (snapshot), total_cost (= hours × rate_amount), created_by.
+     input_logs needs: input_resource_id, input_price_history_id, block_id,
+     activity_id (nullable), work_date, quantity?, unit_of_measure (NOT NULL,
+     snapshot from the resource), unit_price (snapshot), total_cost, created_by.
+     VERIFY exact columns in `types/database.generated.ts` before coding (the
+     labour_logs Row is around line 374; input_logs nearby).
+   - If no active rate/price exists for the work_date, fail with a clean message
+     (there's a `require_active_rate` helper that raises — or check the lookup
+     returned a row). Don't insert a log with a null/zero rate.
+   - Forms need dropdowns of the now-real workers, blocks, activities (labour) and
+     resources, blocks, activities (inputs). Default a labour log's rate type from
+     the worker's default_rate_type_id but allow override (logs can override).
+   - Keep the demo engine running until Logs is fully cut over (it's the last
+     consumer besides Reports/Dashboard).
+3. After Logs: **Reports + Dashboard** can finally read real snapshot data
+   (currently demo). Then the app layout chrome (real org/user name + sign-out),
+   then Settings, then onboarding polish + Google OAuth (phases 4-5).
+
+## ✅ DONE this session (2026-06-03): Workers cut over to real data (#5)
+Fifth master-data surface — completes the master-data cutover. Workers are
+editable + soft-deletable; `default_rate_type_id` is a real FK to rate_types.
+Files:
+- `app/(app)/workers/actions.ts` — `createWorker`, `updateWorker`,
+  `deleteWorker` (soft). `resolveRateType()` validates the chosen rate type
+  belongs to the caller's org BEFORE writing — the workers→rate_types FK is NOT
+  org-scoped, so without this guard a crafted request could assign another
+  tenant's rate type (verified live: the bare FK permits cross-org assignment).
+- `app/(app)/workers/page.tsx` — Server Component; reads workers + a lightweight
+  rate_types subset (id/name/unit) for the dropdown, in parallel. `force-dynamic`.
+- `app/(app)/workers/workers-client.tsx` — table (Name / Employee code / Default
+  rate type / Status / Actions), add-form, edit modal, empty state, real
+  rate-type dropdown, and a gentle nudge to /rate-types when the org has none.
+- **Real schema gotchas handled:** columns are `name` (NOT demo's `full_name`),
+  `employee_code`, `default_rate_type_id` (NOT `rate_type_id`), `is_active`.
+  **There is NO `worker_type` column** — it was demo-only, so the old orphan
+  "Employment"/blank-th/hardcoded-"Active" layout is replaced cleanly. No unique
+  constraint on name (duplicate names allowed) → no 23505 handling needed.
+`npx tsc --noEmit` → clean. Committed `d8b3ad8`. Demo engine untouched elsewhere;
+demo workers page hard-swapped.
+**DB-layer verified live by builder** (farmflowV1, rolled-back, zero residue):
+persist w/ correct org + created_by + default_rate_type_id + is_active default;
+the FK-allows-cross-org check proves the app guard is load-bearing; cross-tenant
+read (em sees 0) AND write (em update → 0 rows) isolation.
+**Still browser-only:** empty state, create/edit/remove, rate-type dropdown shows
+real rate types, no-rate-types nudge.
 
 ## ✅ DONE this session (2026-06-03): Input Resources cut over to real data (#4)
 Fourth master-data surface. Resources are editable + soft-deletable master data,
