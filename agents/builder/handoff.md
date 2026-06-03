@@ -38,29 +38,47 @@ misalignment. Low-risk cosmetic; bundle with the stepper decision above.
 
 ---
 
-## ▶️ RESUME HERE (session 2026-06-03) — LOGS DONE. Entire data-layer cutover complete. Next = Reports + Dashboard
-**Activities (#3), Input Resources (#4), Workers (#5), AND Logs (#6) are all
-shipped + DB-layer verified. Every master + transactional surface is now real.**
-The demo engine now only powers Reports, Dashboard, Settings, and the layout
-chrome. No work in flight.
+## ▶️ RESUME HERE (session 2026-06-03) — Reports + Dashboard DONE. Whole functional app is on real data. Next = layout chrome / sign-out, then Settings
+**All six data surfaces + Reports + Dashboard are real and DB/build-verified.**
+The demo engine (`lib/demo/engine.tsx` + `DemoProvider` in `(app)/layout.tsx`)
+now ONLY powers: the Settings page and the layout chrome (the hardcoded
+"Acacia Orchards / John du Plessis" identity + DemoBanner). No work in flight.
+`npm run build` is green (all 8 org-scoped routes compile as ƒ dynamic).
 A fresh session should:
 1. Run the wake-up routine (pull, read docs/decisions, read this + lead handoff).
-2. **Wire Reports + Dashboard to real snapshot data.** These are READ-ONLY
-   aggregations — the easy-but-important part:
-   - Read `app/(app)/reports/page.tsx` + `app/(app)/dashboard/page.tsx` (both
-     demo) to match the shapes they render.
-   - Aggregate from `labour_logs` + `input_logs` SNAPSHOT columns
-     (rate_amount/unit_price/total_cost) — **NEVER** join to current rate_history/
-     input_price_history to recompute (docs/historical-integrity.md §4). Sum
-     `total_cost` grouped by block / activity / period.
-   - There are views that may help: `v_labour_costs` and `v_blocks_flat`
-     (security_invoker=true, so RLS applies). Check them before hand-rolling SQL.
-   - Server Components + requireOrg() + force-dynamic, same as the other surfaces.
-   - Keep `toLocaleString('en-ZA')` formatting deterministic (the hydration fix
-     in eb8fa9a pinned this — don't regress it).
-3. Then: app layout chrome (real org/user name + a real sign-out — still doesn't
-   exist anywhere), Settings, then phases 4-5 (Google OAuth, onboarding polish +
-   optional starter defaults).
+2. **Wire the app layout chrome + add a real sign-out** (`app/(app)/layout.tsx`).
+   This is the most-visible remaining demo bit and unblocks removing DemoProvider:
+   - Replace the hardcoded org/user identity with the real org name + user (a
+     layout is a Server Component — use requireOrg() / read organizations + the
+     profile). Drop the DemoBanner.
+   - Add a sign-out (a Server Action calling `supabase.auth.signOut()` then
+     redirect to /login) — it does NOT exist anywhere yet.
+   - Once nothing under (app) needs DemoProvider, consider removing it from the
+     layout (Settings still uses the demo engine — migrate or stub Settings first,
+     or keep the provider until Settings is done).
+3. **Settings** (`app/(app)/settings/page.tsx`) — still demo (has demo reset
+   controls). Decide what real settings exist (org name/profile edit, etc.) vs.
+   dropping the demo-reset controls.
+4. Then phases 4-5: Google OAuth, onboarding polish + optional editable starter
+   defaults. Optionally: a UI/UX polish pass (lead's deferred initiative) now that
+   nothing is getting torn out.
+
+## ✅ DONE this session (2026-06-03): Reports + Dashboard cut over to real data
+The two read-only surfaces, completing the functional data-layer migration. Both
+aggregate ONLY from log SNAPSHOT columns — never recompute from current rates
+(docs/historical-integrity.md §4). Files:
+- `app/(app)/reports/page.tsx` — Server Component; fetches the org's labour_logs
+  + input_logs snapshots + block names. `app/(app)/reports/reports-client.tsx`
+  keeps the interactive From/To date filter + cost-by-block aggregation (default
+  range = earliest log → today).
+- `app/(app)/dashboard/page.tsx` — now a pure Server Component. Totals,
+  labour-this-month, top-5 blocks by cost, counts, latest activity — all real.
+  Uses the real `organizations.name` (dropped hardcoded "Acacia Orchards / John");
+  dropped the demo-only `crop` field. Empty states when no logs yet.
+- Number formatting pinned to `en-ZA`. Did NOT touch the demo engine.
+`npx tsc --noEmit` clean; `npm run build` green. Committed `6ec9ac1`.
+**Browser-only left:** render with real logged data (needs some logs first), the
+date filter, en-ZA formatting glance.
 
 ## ✅ DONE this session (2026-06-03): Logs cut over to real data (#6, LAST) — completes Phase 3 data layer
 The heart of the product. Labour + input logging with as-of resolution and the
